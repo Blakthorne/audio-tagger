@@ -1,0 +1,15 @@
+# Audio transcription
+openai-whisper
+
+# Punctuation restoration
+fastpunct
+
+# Grammar correction
+happytransformer
+
+# Semantic paragraph segmentation
+sentence-transformers
+
+# Deep learning framework
+torch
+transformers
