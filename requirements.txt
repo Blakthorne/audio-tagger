@@ -1,9 +1,6 @@
 # Audio transcription
 openai-whisper
 
-# Punctuation restoration
-fastpunct
-
 # Grammar correction
 happytransformer
 
@@ -13,3 +10,6 @@ sentence-transformers
 # Deep learning framework
 torch
 transformers
+
+# HTTP requests for Bible API
+requests
