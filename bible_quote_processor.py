@@ -50,6 +50,9 @@ INTERJECTION_PATTERNS = [
     r'\byes\?',
     r'\bokay\?',
     r'\bhuh\?',
+    r'\bwho\?',  # "we will serve who?" style interjections
+    # Catch "[word] what?" interjections like "his what?" where speaker pauses before a word
+    r'\b(?:his|her|your|my|its|their|a|an|the|to|of|with)\s+what\?',
     r'\bwhat\?(?!\s+(?:shall|is|are|was|were|did|do|does|hath|have|had|should|would|could|can|will|may|might))',  # "what?" alone but not "what shall..."
 ]
 
@@ -152,6 +155,21 @@ BIBLE_BOOKS = {
 BOOK_NAMES_PATTERN = '|'.join(
     sorted(BIBLE_BOOKS.keys(), key=len, reverse=True)
 )
+
+# Word-to-number mapping for spoken verse numbers (e.g., "Romans 12 one" → "Romans 12:1")
+WORD_TO_NUMBER = {
+    'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+    'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+    'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+    'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19, 'twenty': 20,
+    'twenty-one': 21, 'twenty-two': 22, 'twenty-three': 23, 'twenty-four': 24, 'twenty-five': 25,
+    'twenty-six': 26, 'twenty-seven': 27, 'twenty-eight': 28, 'twenty-nine': 29, 'thirty': 30,
+    'thirty-one': 31, 'thirty-two': 32, 'thirty-three': 33, 'thirty-four': 34, 'thirty-five': 35,
+    'thirty-six': 36, 'thirty-seven': 37, 'thirty-eight': 38, 'thirty-nine': 39, 'forty': 40,
+}
+
+# Pattern for spoken numbers
+SPOKEN_NUMBERS_PATTERN = '|'.join(sorted(WORD_TO_NUMBER.keys(), key=len, reverse=True))
 
 # ============================================================================
 # DATA STRUCTURES
@@ -850,18 +868,38 @@ def detect_bible_references(text: str, api_client: BibleAPIClient, transcript_fo
     book_pattern = rf'(?:(?:first|second|third|1|2|3)\s+)?(?:{BOOK_NAMES_PATTERN})'
     
     # Comprehensive pattern to capture various formats
+    # NOTE: Verbose patterns are COMMENTED OUT to preserve natural speech
+    # The goal is to ONLY fix malformed punctuation, not replace verbose references
     patterns = [
-        # Verbose format with full verse range: "Book chapter X verses Y through Z"
-        rf'(?P<book0>{book_pattern})\s+(?:chapter\s+)?(?P<ch0>\d+)\.?\s+(?:And\s+)?(?:we\s+(?:are\s+)?(?:going\s+to\s+)?read\s+)?verses?\s+(?P<v0a>\d+)\s+(?:through|to|-)\s+(?P<v0b>\d+)',
+        # REMOVED: Verbose format with full verse range - this was too aggressive and removed entire sentences
+        # rf'(?P<book0>{book_pattern})\s+(?:chapter\s+)?(?P<ch0>\d+)\.?\s+(?:And\s+)?(?:we\s+(?:are\s+)?(?:going\s+to\s+)?read\s+)?verses?\s+(?P<v0a>\d+)\s+(?:through|to|-)\s+(?P<v0b>\d+)',
         
-        # Verbose format: "Book chapter X verse(s) Y (through Z)"
-        rf'(?P<book1>{book_pattern})\s+chapter\s+(?P<ch1>\d+)(?:\s+(?:and\s+)?verse?s?\s+(?P<v1>\d+)(?:\s+(?:through|to|-)\s+(?P<v2>\d+))?)?',
+        # REMOVED: Verbose format with chapter keyword - preserves natural speech
+        # rf'(?P<book1>{book_pattern})\s+chapter\s+(?P<ch1>\d+)(?:\s+(?:and\s+)?verse?s?\s+(?P<v1>\d+)(?:\s+(?:through|to|-)\s+(?P<v2>\d+))?)?',
         
         # Spoken enumeration: "Book X, Y, and Z" (chapter, verse, verse)
-        rf'(?P<book2>{book_pattern})\s+(?P<ch2>\d+),\s*(?P<v3>\d+),?\s*and\s+(?P<v4>\d+)',
+        # Negative lookahead prevents matching "and 2" when followed by numbered book names like "2 Peter"
+        # Also prevents matching when the final number is followed by ", digit" (indicating a cross-reference)
+        # e.g., "Matthew 5, 44 and 45" → Matthew 5:44-45 (matches)
+        # e.g., "Matthew 16, 24 and 6, 21" → does NOT match (6 is followed by ", 21")
+        rf'(?P<book2>{book_pattern})\s+(?P<ch2>\d+),\s*(?P<v3>\d+),?\s*and\s+(?P<v4>\d+)(?!\s*(?:peter|samuel|kings|chronicles|corinthians|thessalonians|timothy|john)|,\s*\d)',
+        
+        # Comma enumeration: "Book X, Y, Z" (chapter, verse1, verse2) - no "and" keyword
+        # e.g., "Romans 12, 1, 2" → Romans 12:1-2
+        rf'(?P<book2b>{book_pattern})\s+(?P<ch2b>\d+),\s*(?P<v3b>\d+),\s*(?P<v4b>\d+)(?!\s*[,\d])',
+        
+        # Colon + comma enumeration: "Book X:Y, Z" → verse range
+        # e.g., "Romans 12:1, 2" → Romans 12:1-2
+        # MUST come before standard colon pattern to catch the comma enumeration first
+        rf'(?P<book3b>{book_pattern})\s+(?P<ch3b>\d+):(?P<v5b>\d+),\s*(?P<v6b>\d+)(?!\s*[,\d])',
         
         # Standard with colon: "Book X:Y" or "Book X:Y-Z"
         rf'(?P<book3>{book_pattern})\s+(?P<ch3>\d+):(?P<v5>\d+)(?:-(?P<v6>\d+))?',
+        
+        # Verbose chapter-only: "Book chapter X" - captures just the reference, not surrounding text
+        # This enables the post-processing to attach verse ranges mentioned later
+        # e.g., "Matthew chapter 2" + "verses 1 through 12" → Matthew 2:1-12
+        rf'(?P<book9>{book_pattern})\s+chapter\s+(?P<ch9>\d+)(?!\s+(?:and\s+)?verse)',
         
         # Hyphen format: "Book X-Y" (but not verse ranges which have colon)
         rf'(?P<book4>{book_pattern})\s+(?P<ch4>\d+)-(?P<v7>\d+)(?![\d-])',
@@ -870,7 +908,13 @@ def detect_bible_references(text: str, api_client: BibleAPIClient, transcript_fo
         rf'(?P<book5>{book_pattern})\s+(?P<ch5>\d+)\.(?P<v8>\d+)',
         
         # Comma format: "Book X, Y" (chapter, verse - not enumeration)
-        rf'(?P<book6>{book_pattern})\s+(?P<ch6>\d+),\s*(?P<v9>\d+)(?!\s*,?\s*and)',
+        # Negative lookahead prevents matching enumeration patterns like "1, 2, 3"
+        # Changed from (?!\s*,?\s*and) to allow "Job 33, 4 and Genesis" while blocking "1, 2, 3"
+        rf'(?P<book6>{book_pattern})\s+(?P<ch6>\d+),\s*(?P<v9>\d+)(?!\s*,\s*\d)',
+        
+        # Spoken verse numbers: "Book X word" (e.g., "Romans 12 one" → "Romans 12:1")
+        # MUST come before run-together pattern to catch spoken numbers first
+        rf'(?P<book10>{book_pattern})\s+(?P<ch10>\d+)\s+(?P<v_word>(?:{SPOKEN_NUMBERS_PATTERN}))(?=\s|$|[,\.])',
         
         # Run-together or chapter-only: "Book XYZ" or "Book X"
         # Allow comma after (e.g., "Matthew 633,") but not other separators that indicate format
@@ -911,25 +955,21 @@ def detect_bible_references(text: str, api_client: BibleAPIClient, transcript_fo
             verse_start = None
             verse_end = None
             
-            # Verbose format with verse range (book0, ch0, v0a, v0b)
-            if groups.get('ch0'):
-                chapter = int(groups['ch0'])
-                verse_start = int(groups['v0a'])
-                verse_end = int(groups['v0b'])
+            # REMOVED: Verbose format handlers (book0, book1) to preserve natural speech
+            # These patterns consumed entire sentences and replaced them with short forms
             
-            # Verbose format (book1, ch1, v1, v2)
-            elif groups.get('ch1'):
-                chapter = int(groups['ch1'])
-                if groups.get('v1'):
-                    verse_start = int(groups['v1'])
-                if groups.get('v2'):
-                    verse_end = int(groups['v2'])
-            
-            # Spoken enumeration (book2, ch2, v3, v4)
-            elif groups.get('ch2'):
+            # Spoken enumeration with "and" (book2, ch2, v3, v4)
+            if groups.get('ch2'):
                 chapter = int(groups['ch2'])
                 verse_start = int(groups['v3'])
                 verse_end = int(groups['v4'])
+            
+            # Comma enumeration without "and" (book2b, ch2b, v3b, v4b)
+            # e.g., "Romans 12, 1, 2" → Romans 12:1-2
+            elif groups.get('ch2b'):
+                chapter = int(groups['ch2b'])
+                verse_start = int(groups['v3b'])
+                verse_end = int(groups['v4b'])
             
             # Standard with colon (book3, ch3, v5, v6)
             elif groups.get('ch3'):
@@ -937,6 +977,20 @@ def detect_bible_references(text: str, api_client: BibleAPIClient, transcript_fo
                 verse_start = int(groups['v5'])
                 if groups.get('v6'):
                     verse_end = int(groups['v6'])
+            
+            # Colon + comma enumeration (book3b, ch3b, v5b, v6b)
+            # e.g., "Romans 12:1, 2" → Romans 12:1-2
+            elif groups.get('ch3b'):
+                chapter = int(groups['ch3b'])
+                verse_start = int(groups['v5b'])
+                verse_end = int(groups['v6b'])
+            
+            # Verbose chapter-only: "Book chapter X" (book9, ch9)
+            # This captures chapter-only references that use the word "chapter"
+            # The post-processing will attach verse ranges mentioned later
+            elif groups.get('ch9'):
+                chapter = int(groups['ch9'])
+                # verse_start remains None - post-processing will handle it
             
             # Hyphen format (book4, ch4, v7)
             elif groups.get('ch4'):
@@ -957,6 +1011,13 @@ def detect_bible_references(text: str, api_client: BibleAPIClient, transcript_fo
             elif groups.get('ch8'):
                 chapter = int(groups['ch8'])
                 verse_start = int(groups['v10'])
+            
+            # Spoken verse numbers: "Romans 12 one" (book10, ch10, v_word)
+            elif groups.get('ch10') and groups.get('v_word'):
+                chapter = int(groups['ch10'])
+                word = groups['v_word'].lower()
+                if word in WORD_TO_NUMBER:
+                    verse_start = WORD_TO_NUMBER[word]
             
             # Run-together or chapter-only (book7, num)
             elif groups.get('num'):
@@ -1000,6 +1061,63 @@ def detect_bible_references(text: str, api_client: BibleAPIClient, transcript_fo
                     ref.original_text = text[ref.position:match.end()]
                     break
     
+    # Post-processing: Look for cross-references like "and X, Y" or "and X:Y" after a full reference
+    # These inherit the book name from the preceding reference
+    # e.g., "Matthew 16, 24 and 6, 21" → Matthew 16:24 + Matthew 6:21
+    cross_ref_pattern = r'\s+and\s+(\d{1,3}),?\s*(\d{1,3})(?!\s*(?:peter|samuel|kings|chronicles|corinthians|thessalonians|timothy|john))'
+    
+    for match in re.finditer(cross_ref_pattern, text, re.IGNORECASE):
+        match_pos = match.start()
+        
+        # Check if this "and X, Y" is already part of an existing reference's original_text
+        # This prevents duplicates like "Matthew 5, 44 and 45" creating both:
+        #   - Matthew 5:44-45 (from enumeration pattern)
+        #   - Matthew 4:5 (from "and 45" being re-matched here)
+        already_captured = False
+        match_text = match.group().strip()  # e.g., "and 45"
+        for ref in references:
+            # Check if this match falls within the span of an existing reference
+            ref_end = ref.position + len(ref.original_text)
+            if ref.position <= match_pos < ref_end:
+                # The match start is within an existing reference - it's already captured
+                already_captured = True
+                break
+            # Also check if the "and X" text appears in the original_text of a reference
+            # that has a verse_end (indicating enumeration like "44 and 45")
+            if ref.verse_end and match_text.lower() in ref.original_text.lower():
+                already_captured = True
+                break
+        
+        if already_captured:
+            continue
+        
+        # Find the nearest preceding reference to inherit book name from
+        nearest_ref = None
+        for ref in references:
+            if ref.position < match_pos and match_pos - ref.position < 50:
+                # Check that we're not matching a numbered book name (e.g., "and 2 Peter")
+                if ref.book and ref.verse_start:
+                    nearest_ref = ref
+        
+        if nearest_ref:
+            cross_chapter = int(match.group(1))
+            cross_verse = int(match.group(2))
+            
+            # Create a new reference with inherited book name
+            cross_ref = BibleReference(
+                book=nearest_ref.book,
+                chapter=cross_chapter,
+                verse_start=cross_verse,
+                verse_end=None,
+                original_text=match.group().strip(),
+                position=match_pos + 1  # +1 to skip the leading space
+            )
+            
+            # Verify this is a valid reference before adding
+            if api_client.verify_reference(nearest_ref.book, cross_chapter, cross_verse):
+                references.append(cross_ref)
+                seen_positions.add(cross_ref.position)
+    
     # Sort by position in text
     references.sort(key=lambda r: r.position)
     
@@ -1008,6 +1126,10 @@ def detect_bible_references(text: str, api_client: BibleAPIClient, transcript_fo
 def normalize_references_in_text(text: str, references: List[BibleReference]) -> str:
     """
     Replace malformed Bible references in text with properly formatted versions.
+    
+    IMPORTANT: Verbose references using "chapter" are NOT normalized because we want
+    to preserve natural speech patterns. Only malformed punctuation (like "Book X-Y"
+    instead of "Book X:Y") is corrected.
     
     Args:
         text: Original text
@@ -1023,6 +1145,10 @@ def normalize_references_in_text(text: str, references: List[BibleReference]) ->
     for ref in refs_sorted:
         normalized = ref.to_standard_format()
         original = ref.original_text
+        
+        # Skip verbose references that use "chapter" - preserve natural speech
+        if 'chapter' in original.lower():
+            continue
         
         # Only replace if different
         if normalized != original:
@@ -1286,7 +1412,14 @@ def validate_gap_is_verse_content(gap_text: str, verse_text: str) -> bool:
         return True
     
     # Check for known interjection patterns that are OK to span
-    interjection_only = re.match(r'^[,.\s]*(a what\??|right\??|amen\??|yes\??)[,.\s]*$', gap_clean, re.IGNORECASE)
+    # Includes "his what?", "their what?", etc. where speaker pauses before a word
+    interjection_only = re.match(
+        r'^[,.\s]*('
+        r'a what\??|right\??|amen\??|yes\??|who\??|'
+        r'(?:his|her|your|my|its|their|a|an|the|to|of|with)\s+what\??'
+        r')[,.\s]*$', 
+        gap_clean, re.IGNORECASE
+    )
     if interjection_only:
         return True
     
@@ -1315,7 +1448,10 @@ def validate_gap_is_verse_content(gap_text: str, verse_text: str) -> bool:
     
     # Check if gap content words appear in the verse text (allowing for interjections)
     # Remove known interjection patterns from gap for this check
-    gap_without_interjections = re.sub(r'\ba what\?\b', '', gap_clean, flags=re.IGNORECASE)
+    gap_without_interjections = re.sub(
+        r'\ba what\?\b|\bwho\?\b|\b(?:his|her|your|my|its|their|a|an|the)\s+what\?\b', 
+        '', gap_clean, flags=re.IGNORECASE
+    )
     gap_words = get_words(gap_without_interjections)
     verse_words = get_words(verse_text)
     verse_words_set = set(verse_words)
@@ -1406,6 +1542,106 @@ def validate_quote_end(quote_text: str, verse_text: str, transcript: str, start_
             return start_pos + end_idx
     
     return end_pos
+
+
+def extend_quote_past_interjection(transcript: str, current_end: int, verse_text: str, max_look_ahead: int = 50) -> int:
+    """
+    Extend quote boundary to include verse content that appears after an interjection.
+    
+    Handles cases like: "There will your heart be, what? Also."
+    Where "Also" is part of the verse but appears after the interjection "what?".
+    
+    Args:
+        transcript: Full transcript text
+        current_end: Current end position of the quote
+        verse_text: The full verse text from API
+        max_look_ahead: Maximum characters to look ahead for verse continuation
+    
+    Returns:
+        Extended end position (may be same as current_end if no extension found)
+    """
+    verse_words = get_words(verse_text)
+    verse_words_set = set(verse_words)
+    
+    # Get the last few words of the current quote to see what's already matched
+    look_back = min(50, current_end)
+    quote_end_text = transcript[current_end - look_back:current_end]
+    quote_end_words = get_words(quote_end_text)
+    
+    # Find which verse words are NOT yet matched at the end
+    # We're looking for words that should come after what we've matched
+    if not quote_end_words:
+        return current_end
+    
+    last_matched_word = quote_end_words[-1] if quote_end_words else ''
+    
+    # Find the position of the last matched word in the verse
+    last_matched_idx = -1
+    for i, vw in enumerate(verse_words):
+        if vw == last_matched_word:
+            last_matched_idx = i
+    
+    # If we couldn't find the match, try the second-to-last word
+    if last_matched_idx == -1 and len(quote_end_words) >= 2:
+        second_last = quote_end_words[-2]
+        for i, vw in enumerate(verse_words):
+            if vw == second_last:
+                last_matched_idx = i
+    
+    if last_matched_idx == -1 or last_matched_idx >= len(verse_words) - 1:
+        # Either couldn't find match or we're already at the end of the verse
+        return current_end
+    
+    # There are remaining verse words after what we've matched
+    remaining_verse_words = verse_words[last_matched_idx + 1:]
+    
+    if not remaining_verse_words:
+        return current_end
+    
+    # Look ahead in the transcript for these remaining words
+    look_ahead_text = transcript[current_end:current_end + max_look_ahead]
+    look_ahead_words = get_words(look_ahead_text)
+    
+    # Find the remaining verse words after any interjection
+    # Common interjections: what?, right?, amen?, who?, etc.
+    interjection_words = {'what', 'right', 'amen', 'yes', 'okay', 'huh', 'who'}
+    
+    best_extension = current_end
+    for i, word in enumerate(look_ahead_words):
+        # Skip interjection words
+        if word in interjection_words:
+            continue
+        
+        # Check if this word matches the next expected verse word
+        if word == remaining_verse_words[0]:
+            # Found the continuation! Find where this word ends
+            word_pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
+            for match in word_pattern.finditer(look_ahead_text):
+                word_end_pos = current_end + match.end()
+                
+                # Check for additional remaining verse words
+                extended_end = word_end_pos
+                if len(remaining_verse_words) > 1:
+                    # Look for more verse words after this one
+                    remaining_text = transcript[word_end_pos:word_end_pos + 30]
+                    remaining_look_words = get_words(remaining_text)
+                    for j, next_remaining in enumerate(remaining_verse_words[1:]):
+                        if j < len(remaining_look_words) and remaining_look_words[j] == next_remaining:
+                            # Find position of this word
+                            next_pattern = re.compile(r'\b' + re.escape(next_remaining) + r'\b', re.IGNORECASE)
+                            for next_match in next_pattern.finditer(remaining_text):
+                                extended_end = word_end_pos + next_match.end()
+                                break
+                
+                # Include trailing punctuation
+                while extended_end < len(transcript) and transcript[extended_end] in '.,;:!?':
+                    extended_end += 1
+                
+                best_extension = extended_end
+                break
+            break  # Found the first matching word, stop looking
+    
+    return best_extension
 
 
 def find_quote_boundaries_improved(verse_text: str, transcript: str, ref_position: int, 
@@ -1552,6 +1788,12 @@ def find_quote_boundaries_improved(verse_text: str, transcript: str, ref_positio
     if validated_end != end_pos:
         end_pos = validated_end
     
+    # Check for verse content that continues after an interjection
+    # e.g., "There will your heart be, what? Also." - "Also" is part of the verse
+    extended_end = extend_quote_past_interjection(transcript, end_pos, verse_text)
+    if extended_end > end_pos:
+        end_pos = extended_end
+    
     # Collect all matches that fall within our boundaries for confidence calculation
     matches_in_range = [m for m in all_matches if m[0] >= start_pos and m[1] <= end_pos]
     
@@ -1636,18 +1878,27 @@ def fetch_verse_range_individual(api_client: BibleAPIClient, book: str, chapter:
 
 
 def detect_matching_verse_subset(individual_verses: Dict[int, str], transcript: str, 
-                                  search_start: int, search_window: int = 6000) -> Tuple[Optional[int], Optional[int], List[Tuple[int, int, int, float]]]:
+                                  search_start: int, search_window: int = 6000,
+                                  min_confidence: float = 0.6,
+                                  first_verse_num: int = None) -> Tuple[Optional[int], Optional[int], List[Tuple[int, int, int, float]]]:
     """
     Detect which verses from a range actually appear in the transcript.
     
     This handles the case where a speaker announces "verses 1-12" but
     actually only reads verses 7-12.
     
+    Also handles cases where speakers skip connector words at verse starts
+    (e.g., "But when the fulness..." spoken as "When the fulness...").
+    
     Args:
         individual_verses: Dict mapping verse number to verse text
         transcript: The sermon transcript
         search_start: Position to start searching from
         search_window: How far ahead to search
+        min_confidence: Minimum confidence threshold for verse detection.
+                       For extending beyond explicitly referenced verses, use 0.8.
+        first_verse_num: The explicitly referenced first verse number. Verses
+                        beyond this require higher confidence to prevent false positives.
     
     Returns:
         Tuple of (first_matching_verse, last_matching_verse, matches_list)
@@ -1664,6 +1915,9 @@ def detect_matching_verse_subset(individual_verses: Dict[int, str], transcript: 
     # Normalize each word for matching (but keep original positions)
     search_area_words = [normalize_for_comparison(m.group()) for m in word_matches_in_area]
     
+    # Common Bible verse connector words that speakers often skip at the start of verses
+    SKIP_WORDS = {'but', 'and', 'for', 'then', 'now', 'so', 'yet', 'or', 'therefore', 'wherefore', 'behold'}
+    
     matches = []
     
     for verse_num, verse_text in sorted(individual_verses.items()):
@@ -1672,33 +1926,84 @@ def detect_matching_verse_subset(individual_verses: Dict[int, str], transcript: 
         if len(verse_words) < 3:
             continue
         
-        # Use the first distinctive phrase (first 5-6 words) as anchor
+        # Build multiple anchor candidates: starting from word 0, and also skipping skip words
+        # This handles cases like "But when..." being spoken as "When..."
+        # IMPORTANT: When first word is a skip word, we put skip-word anchors FIRST
+        # because speakers often omit these words, and we want to find the actual quote
+        # location rather than a false positive elsewhere that happens to contain the skip word.
+        anchor_candidates = []
         anchor_size = min(6, len(verse_words))
-        anchor_words = verse_words[:anchor_size]
         
-        # Search for anchor in search area words
+        # Check if first word is a skip word
+        first_is_skip = verse_words[0] in SKIP_WORDS if verse_words else False
+        
+        if first_is_skip and len(verse_words) > anchor_size:
+            # Put skip-word anchors FIRST when first word is skippable
+            # Secondary anchor: skip first word
+            anchor_candidates.append(verse_words[1:1 + anchor_size])
+            
+            # Tertiary anchor: skip first two words if both are skip words
+            if len(verse_words) > anchor_size + 1 and verse_words[1] in SKIP_WORDS:
+                anchor_candidates.append(verse_words[2:2 + anchor_size])
+            
+            # Primary anchor last (with skip word)
+            anchor_candidates.append(verse_words[:anchor_size])
+        else:
+            # Normal order: primary anchor first
+            anchor_candidates.append(verse_words[:anchor_size])
+            
+            if len(verse_words) > anchor_size and verse_words[0] in SKIP_WORDS:
+                anchor_candidates.append(verse_words[1:1 + anchor_size])
+                if len(verse_words) > anchor_size + 1 and verse_words[1] in SKIP_WORDS:
+                    anchor_candidates.append(verse_words[2:2 + anchor_size])
+        
+        # Search for any anchor candidate in search area words
+        # Stop searching once we find a good match (>= 0.6) with an earlier anchor
         best_match_idx = None
         best_match_score = 0
+        found_with_preferred_anchor = False
         
-        for i in range(len(search_area_words) - anchor_size + 1):
-            window = search_area_words[i:i + anchor_size]
-            
-            # Count matching words with fuzzy matching
-            matches_count = 0
-            for anchor_word, window_word in zip(anchor_words, window):
-                if anchor_word == window_word:
-                    matches_count += 1
-                elif len(anchor_word) > 3 and len(window_word) > 3:
-                    if difflib.SequenceMatcher(None, anchor_word, window_word).ratio() > 0.8:
-                        matches_count += 0.8
-            
-            score = matches_count / anchor_size
-            
-            if score > best_match_score and score >= 0.6:  # 60% threshold
-                best_match_score = score
-                best_match_idx = i
+        for anchor_idx, anchor_words in enumerate(anchor_candidates):
+            # If we already found a match with a preferred (earlier) anchor, skip remaining
+            if found_with_preferred_anchor:
+                break
+                
+            for i in range(len(search_area_words) - len(anchor_words) + 1):
+                window = search_area_words[i:i + len(anchor_words)]
+                
+                # Count matching words with fuzzy matching
+                matches_count = 0
+                for anchor_word, window_word in zip(anchor_words, window):
+                    if anchor_word == window_word:
+                        matches_count += 1
+                    elif len(anchor_word) > 3 and len(window_word) > 3:
+                        if difflib.SequenceMatcher(None, anchor_word, window_word).ratio() > 0.8:
+                            matches_count += 0.8
+                
+                score = matches_count / len(anchor_words)
+                
+                # Determine the confidence threshold for this verse
+                # Use the base min_confidence for the first (explicitly referenced) verse,
+                # but require higher confidence (0.8) for subsequent verses to prevent
+                # false positives from common phrases like "and the LORD God"
+                required_confidence = min_confidence
+                if first_verse_num is not None and verse_num > first_verse_num:
+                    required_confidence = max(min_confidence, 0.8)  # At least 80% for extensions
+                
+                if score > best_match_score and score >= required_confidence:
+                    best_match_score = score
+                    best_match_idx = i
+                    # If this is a preferred anchor (skip-word anchor when first word is skip),
+                    # mark that we found a match so we stop looking at later anchors
+                    if first_is_skip and anchor_idx < len(anchor_candidates) - 1:
+                        found_with_preferred_anchor = True
         
-        if best_match_idx is not None and best_match_score >= 0.6:
+        # Also apply the confidence threshold when deciding if we found a match
+        required_confidence = min_confidence
+        if first_verse_num is not None and verse_num > first_verse_num:
+            required_confidence = max(min_confidence, 0.8)
+        
+        if best_match_idx is not None and best_match_score >= required_confidence:
             # Get character position from word match (indices are now consistent)
             char_start = word_matches_in_area[best_match_idx].start()
             
@@ -2371,6 +2676,51 @@ def process_text(text: str, translation: str = None, verbose: bool = True,
                 # Skip past the reference text to avoid matching verse numbers as part of quote
                 result = find_quote_boundaries_improved(verse_text, text, ref.position, ref_length)
                 
+                # For single-verse references (no verse_end), check if the speaker continues reading
+                # subsequent verses beyond the announced verse. If so, extend the quote boundaries.
+                is_single_verse = ref.verse_end is None or ref.verse_end == ref.verse_start
+                
+                if is_single_verse and result is not None and cache_key not in individual_verses_cache:
+                    # Fetch a few verses after the announced verse to check for continuation
+                    start_verse = ref.verse_start
+                    # Fetch up to 10 subsequent verses to check for multi-verse reading
+                    original_trans = api_client.translation
+                    api_client.translation = detected_translation
+                    subsequent_verses = fetch_verse_range_individual(
+                        api_client, ref.book, ref.chapter, 
+                        start_verse, start_verse + 10
+                    )
+                    api_client.translation = original_trans
+                    
+                    if subsequent_verses and len(subsequent_verses) > 1:
+                        # Check if subsequent verses appear in the transcript after the initial quote
+                        _, _, initial_end, initial_conf = result[0], result[1], result[1], result[2]
+                        
+                        # Search for subsequent verses starting from where we found the first verse
+                        # Pass first_verse_num to require higher confidence for verses beyond the referenced one
+                        first_match, last_match, subset_matches = detect_matching_verse_subset(
+                            subsequent_verses, text, ref.position,
+                            first_verse_num=start_verse  # Require 80%+ confidence for extensions
+                        )
+                        
+                        if subset_matches and last_match and last_match > start_verse:
+                            # Speaker read additional verses!
+                            if verbose:
+                                print(f"   {api_ref}: Single verse reference but speaker read verses {first_match}-{last_match}")
+                            
+                            # Use the extended verse range
+                            individual_verses_cache[cache_key] = subsequent_verses
+                            subset_result = find_quote_boundaries_with_subset(
+                                subsequent_verses, subset_matches, first_match, last_match
+                            )
+                            if subset_result and subset_result[1] > result[1]:  # Extended result is longer
+                                result = subset_result
+                                verse_text = build_composite_verse_text(
+                                    subsequent_verses, first_match, last_match
+                                )
+                                # Update reference to reflect actual verses read
+                                ref.verse_end = last_match if last_match != start_verse else None
+                
                 if cache_key in individual_verses_cache:
                     individual_verses = individual_verses_cache[cache_key]
                     first_match_verse, last_match_verse, subset_matches = detect_matching_verse_subset(
@@ -2473,6 +2823,86 @@ def process_text(text: str, translation: str = None, verbose: bool = True,
                 else:
                     if verbose:
                         print(f"   {api_ref}: ✗ Could not locate in transcript")
+        else:
+            # Chapter-only reference (e.g., "Galatians 4")
+            # Try to detect which verses from the chapter are being read
+            chapter_ref = f"{ref.book} {ref.chapter}"
+            cache_key = f"{chapter_ref}@{ref.position}"
+            
+            if verbose:
+                print(f"   {chapter_ref}: Chapter-only reference, detecting quoted verses...")
+            
+            # Fetch individual verses from the chapter (first 20 verses should cover most quotes)
+            individual_verses = {}
+            for v in range(1, 21):  # Check verses 1-20
+                verse_result = api_client.get_verse(f"{ref.book} {ref.chapter}:{v}")
+                if verse_result and 'text' in verse_result:
+                    individual_verses[v] = verse_result['text']
+                else:
+                    break  # Stop if we hit a verse that doesn't exist
+            
+            if individual_verses:
+                first_match_verse, last_match_verse, subset_matches = detect_matching_verse_subset(
+                    individual_verses, text, ref.position
+                )
+                
+                if subset_matches and first_match_verse and last_match_verse:
+                    subset_result = find_quote_boundaries_with_subset(
+                        individual_verses, subset_matches, first_match_verse, last_match_verse
+                    )
+                    
+                    if subset_result:
+                        start, end, confidence = subset_result
+                        verse_text = build_composite_verse_text(
+                            individual_verses, first_match_verse, last_match_verse
+                        )
+                        
+                        # Update the reference with the actual verses found
+                        ref.verse_start = first_match_verse
+                        ref.verse_end = last_match_verse if last_match_verse != first_match_verse else None
+                        
+                        extended_start = extend_quote_start_backward(text, start, ref.position)
+                        if extended_start < start:
+                            if verbose:
+                                print(f"   {chapter_ref}: Extended start backward {start - extended_start} chars")
+                            start = extended_start
+                        
+                        if verbose:
+                            detected_range = f"{first_match_verse}-{last_match_verse}" if last_match_verse != first_match_verse else str(first_match_verse)
+                            print(f"   {chapter_ref}: Detected verses {detected_range}, found at {start}-{end} (conf: {confidence:.2f})")
+                        
+                        # Detect interjections and commentary
+                        interjections = detect_interjections(text, start, end)
+                        commentary_blocks = detect_commentary_blocks(text, start, end, verse_text)
+                        all_exclusions = interjections + commentary_blocks
+                        all_exclusions.sort()
+                        
+                        if all_exclusions:
+                            merged_exclusions = [all_exclusions[0]]
+                            for excl_start, excl_end in all_exclusions[1:]:
+                                if excl_start <= merged_exclusions[-1][1] + 5:
+                                    merged_exclusions[-1] = (merged_exclusions[-1][0], max(merged_exclusions[-1][1], excl_end))
+                                else:
+                                    merged_exclusions.append((excl_start, excl_end))
+                            all_exclusions = merged_exclusions
+                        
+                        quote = QuoteBoundary(
+                            start_pos=start,
+                            end_pos=end,
+                            reference=ref,
+                            verse_text=verse_text,
+                            confidence=confidence,
+                            translation=api_client.translation,
+                            has_interjection=bool(all_exclusions),
+                            interjection_positions=all_exclusions
+                        )
+                        quotes.append(quote)
+                    else:
+                        if verbose:
+                            print(f"   {chapter_ref}: ✗ Could not determine quote boundaries")
+                else:
+                    if verbose:
+                        print(f"   {chapter_ref}: ✗ No matching verses found in transcript")
     
     # Phase 5: Apply quotation marks
     if verbose:

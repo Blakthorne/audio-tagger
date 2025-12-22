@@ -31,7 +31,6 @@ if device == "mps":
 def transcribe_audio(file_path: str) -> str:
     print("Transcribing audio...")
     # Use medium model for good speed-accuracy balance
-    # Post-processing handles punctuation, grammar, etc.
     model = whisper.load_model("medium", device=device)
     
     # Use FP16 on MPS for faster processing
@@ -39,21 +38,39 @@ def transcribe_audio(file_path: str) -> str:
         print("✓ Whisper using Apple Silicon GPU")
     
     # Balanced parameters optimized for long files
-    # Note: Using fp16=False on MPS to avoid hallucination issues (exclamation marks)
+    # IMPORTANT: no_speech_threshold is set to None to prevent skipping audio segments.
+    # With a threshold like 0.6, Whisper can skip 10-30+ seconds of audio if it detects
+    # "silence" (which may actually be soft speech, background music, or pauses).
+    # For sermon transcription, we want ALL audio transcribed, even quiet parts.
     result = model.transcribe(
         file_path,
         language="en",  # Specify language for better accuracy
         temperature=(0.0, 0.2, 0.4, 0.6, 0.8, 1.0),  # Temperature fallback to avoid hallucinations
         compression_ratio_threshold=2.4,  # Detect repetitions
         logprob_threshold=-1.0,  # Filter low-confidence segments
-        no_speech_threshold=0.6,  # Better silence detection
+        no_speech_threshold=None,  # DISABLED - prevents skipping audio segments
         condition_on_previous_text=True,  # Use context from previous segments
         verbose=True,  # Show progress for long files
         fp16=True,
-        initial_prompt="This is a clear audio recording of speech. You know how to notate Bible references."  # Help model recognize speech
+        initial_prompt="This is a clear audio recording of speech."  # Help model recognize speech
     )
     print("Finished transcribing!")
     return result["text"]
+
+# Prayer detection patterns - sentences that start prayers (NOT including "Amen" which ENDS prayers)
+# These patterns should be SPECIFIC to prayer invocations, not just any sentence starting with "God" or "Lord"
+PRAYER_START_PATTERNS = [
+    r"^let'?s\s+pray",                          # "Let's pray"
+    r"^let\s+us\s+pray",                        # "Let us pray"
+    r"^dearly?\s+(heavenly\s+)?father",         # "Dear Father", "Dearly Father"  
+    r"^dear\s+(lord|god)",                      # "Dear Lord", "Dear God"
+    r"^(lord|father|god),?\s+(we|i)\s+(ask|pray|thank|come)\b",  # "Lord, we pray/ask/thank/come"
+    r"^in\s+jesus['']?\s+name",                 # "In Jesus' name"
+    # NOTE: "Amen" is NOT a prayer start - it ENDS prayers. Handled separately below.
+]
+
+# Pattern to detect standalone "Amen" sentences that should be attached to previous paragraph
+AMEN_END_PATTERN = r"^amen\s*[.!]?$"
 
 
 def segment_into_paragraphs(text: str, quote_boundaries: List[QuoteBoundary] = None, 
@@ -66,6 +83,8 @@ def segment_into_paragraphs(text: str, quote_boundaries: List[QuoteBoundary] = N
     
     IMPORTANT: This function ensures Bible quotes are never split across paragraphs.
     Quotes are treated as atomic units that must stay together.
+    
+    Also detects prayers and ensures they start new paragraphs.
     
     Args:
         text: The input text to segment (with quotes already marked)
@@ -86,6 +105,69 @@ def segment_into_paragraphs(text: str, quote_boundaries: List[QuoteBoundary] = N
     if len(sentences) <= min_sentences_per_paragraph:
         return text
     
+    # Detect sentences that are prayer starts (should force paragraph break before)
+    prayer_start_sentences = set()
+    # Detect sentences that are "Amen" (should be attached to previous paragraph)
+    amen_sentences = set()
+    for sent_idx, sentence in enumerate(sentences):
+        sent_stripped = sentence.strip()
+        # Check for "Amen" first (takes priority)
+        if re.search(AMEN_END_PATTERN, sent_stripped, re.IGNORECASE):
+            amen_sentences.add(sent_idx)
+        else:
+            for pattern in PRAYER_START_PATTERNS:
+                if re.search(pattern, sent_stripped, re.IGNORECASE):
+                    prayer_start_sentences.add(sent_idx)
+                    break
+    
+    if prayer_start_sentences:
+        print(f"   Detected {len(prayer_start_sentences)} prayer start(s) (will force paragraph breaks)")
+    if amen_sentences:
+        print(f"   Detected {len(amen_sentences)} 'Amen' sentence(s) (will attach to previous paragraph)")
+    
+    # Build prayer RANGES (start_idx → amen_idx) to prevent breaks within prayers
+    # Each PRIMARY prayer start should find its corresponding Amen ending
+    # NESTED prayer starts (like "Dearly Father" inside "Let's pray") should NOT force breaks
+    sentences_in_prayers = set()
+    primary_prayer_starts = set()  # Only these will force paragraph breaks
+    prayer_ranges = []  # List of (start, end) tuples
+    sorted_prayer_starts = sorted(prayer_start_sentences)
+    sorted_amens = sorted(amen_sentences)
+    used_amens = set()
+    
+    for prayer_start_idx in sorted_prayer_starts:
+        # Skip if this start is already inside another prayer range
+        already_in_range = False
+        for (range_start, range_end) in prayer_ranges:
+            if range_start <= prayer_start_idx <= range_end:
+                already_in_range = True
+                break
+        
+        if already_in_range:
+            continue  # This is a nested prayer start, skip it
+            
+        # Find the first unused Amen after this start
+        amen_idx = None
+        for candidate_amen in sorted_amens:
+            if candidate_amen > prayer_start_idx and candidate_amen not in used_amens:
+                amen_idx = candidate_amen
+                used_amens.add(amen_idx)
+                break
+        
+        if amen_idx is not None:
+            # This is a PRIMARY prayer start - mark it and build range
+            primary_prayer_starts.add(prayer_start_idx)
+            prayer_ranges.append((prayer_start_idx, amen_idx))
+            # Mark all sentences in this range
+            for idx in range(prayer_start_idx, amen_idx + 1):
+                sentences_in_prayers.add(idx)
+    
+    if sentences_in_prayers:
+        print(f"   {len(sentences_in_prayers)} sentences are within prayers (will not split)")
+        if len(primary_prayer_starts) < len(prayer_start_sentences):
+            nested = len(prayer_start_sentences) - len(primary_prayer_starts)
+            print(f"   {nested} nested prayer pattern(s) detected (will not force breaks)")
+    
     # Build a mapping of character positions to sentence indices
     # This helps us identify which sentences are part of quotes
     sentence_char_positions = []
@@ -99,16 +181,30 @@ def segment_into_paragraphs(text: str, quote_boundaries: List[QuoteBoundary] = N
         current_pos = end_pos
     
     # Identify which sentences are part of quotes (should not be split)
+    # For quotes with interjections, we need to track the full quote range
     sentences_in_quotes = set()
+    quote_ranges = []  # List of (first_sentence_idx, last_sentence_idx) for each quote
     if quote_boundaries:
         for quote in quote_boundaries:
+            first_sent_idx = None
+            last_sent_idx = None
             for sent_idx, (sent_start, sent_end) in enumerate(sentence_char_positions):
                 # Check if sentence overlaps with quote boundary
                 # A sentence is "in" a quote if there's any overlap
                 if sent_start < quote.end_pos and sent_end > quote.start_pos:
                     sentences_in_quotes.add(sent_idx)
+                    if first_sent_idx is None:
+                        first_sent_idx = sent_idx
+                    last_sent_idx = sent_idx
+            
+            # Store the full range for this quote (handles interjections)
+            if first_sent_idx is not None and last_sent_idx is not None:
+                quote_ranges.append((first_sent_idx, last_sent_idx))
         
         print(f"   {len(sentences_in_quotes)} sentences are within Bible quotes (will not split)")
+        if any(end - start > 0 for start, end in quote_ranges):
+            multi_sent_quotes = sum(1 for start, end in quote_ranges if end > start)
+            print(f"   {multi_sent_quotes} quotes span multiple sentences (will keep together)")
     
     # Get embeddings for all sentences
     print(f"Analyzing {len(sentences)} sentences...")
@@ -131,35 +227,72 @@ def segment_into_paragraphs(text: str, quote_boundaries: List[QuoteBoundary] = N
         smoothed_similarities.append(avg_sim)
     
     # Build paragraphs with minimum length requirement
-    # CRITICAL: Never break inside a quote
+    # CRITICAL: Never break inside a quote (even with interjections)
+    # ALSO: Force breaks before AND after prayers (prayers get their own paragraphs)
     paragraphs = []
     current_paragraph = [sentences[0]]
+    just_ended_prayer = False  # Track if we just added an Amen
     
     for i, similarity in enumerate(smoothed_similarities):
-        current_paragraph.append(sentences[i + 1])
+        next_sentence_idx = i + 1
         
-        # Determine if we CAN break here (not inside a quote)
-        # We can only break AFTER sentence i+1 if NEITHER sentence i+1 NOR sentence i+2
-        # are in the same quote as any previous sentence in this potential break point
+        # If we just ended a prayer with Amen, force a paragraph break now
+        if just_ended_prayer:
+            if current_paragraph:
+                paragraphs.append(' '.join(current_paragraph))
+                current_paragraph = []
+            just_ended_prayer = False
+        
+        # Check if this sentence (i+1) is a PRIMARY prayer start (force break BEFORE it)
+        # Only primary prayer starts force breaks - nested ones (like "Dearly Father" inside "Let's pray") don't
+        is_new_prayer_start = next_sentence_idx in primary_prayer_starts
+        if is_new_prayer_start and current_paragraph:
+            # Force paragraph break before prayer
+            paragraphs.append(' '.join(current_paragraph))
+            current_paragraph = [sentences[next_sentence_idx]]
+            continue
+        
+        # If this is an "Amen" sentence, add it to current paragraph and mark for break after
+        if next_sentence_idx in amen_sentences:
+            current_paragraph.append(sentences[next_sentence_idx])
+            just_ended_prayer = True  # Will force break on next iteration
+            continue
+        
+        current_paragraph.append(sentences[next_sentence_idx])
+        
+        # Determine if we CAN break here (not inside a quote OR a prayer)
         can_break = True
         
-        # Check if we're in the middle of a quote
-        if sentences_in_quotes:
-            # If current sentence (i+1) is in a quote, check if next sentence is also in the same quote
-            if (i + 1) in sentences_in_quotes:
-                # Find which quote this sentence belongs to
-                for quote in quote_boundaries:
-                    sent_start, sent_end = sentence_char_positions[i + 1]
-                    if sent_start < quote.end_pos and sent_end > quote.start_pos:
-                        # This sentence is in a quote - check if the quote continues
-                        # Don't break if the next sentence is also in this quote
-                        if (i + 2) < len(sentences):
-                            next_sent_start, next_sent_end = sentence_char_positions[i + 2]
-                            if next_sent_start < quote.end_pos:
-                                can_break = False
-                                break
+        # Check if we're in the middle of a prayer - if so, don't break
+        if sentences_in_prayers:
+            if next_sentence_idx in sentences_in_prayers:
+                # Check if the next sentence is also part of the same prayer
+                if (next_sentence_idx + 1) < len(sentences) and (next_sentence_idx + 1) in sentences_in_prayers:
+                    can_break = False
         
-        # Only consider breaking if we have minimum sentences AND we're not in a quote
+        # Check if we're in the middle of a quote (including quotes with interjections)
+        # Use quote_ranges to check if current and next sentence are part of same logical quote
+        if can_break and quote_ranges:
+            for quote_start, quote_end in quote_ranges:
+                # If current sentence is within a quote range and there are more sentences
+                # in that same quote range after us, don't break
+                if quote_start <= next_sentence_idx <= quote_end:
+                    if next_sentence_idx < quote_end:
+                        # There are more sentences in this quote - don't break
+                        can_break = False
+                        break
+        
+        # Check for interjection pattern: sentence ends with "what?", "who?", etc.
+        # and next sentence starts with a quote - these should stay together
+        if can_break and (next_sentence_idx + 1) < len(sentences):
+            current_sent = sentences[next_sentence_idx].strip()
+            following_sent = sentences[next_sentence_idx + 1].strip()
+            # Pattern: current ends with interjection question, next starts with quote
+            if re.search(r'\b(what|who|where|when|why|how)\?\s*"?\s*$', current_sent, re.IGNORECASE):
+                if following_sent.startswith('"'):
+                    can_break = False
+        
+        # Only consider breaking if we have minimum sentences AND we're not in a quote/prayer
         if len(current_paragraph) >= min_sentences_per_paragraph and can_break:
             # Break on significant topic change
             if similarity < similarity_threshold:
@@ -167,8 +300,8 @@ def segment_into_paragraphs(text: str, quote_boundaries: List[QuoteBoundary] = N
                 current_paragraph = []
         
         # Progress indicator for long texts
-        if (i + 1) % 50 == 0:
-            print(f"  Processed {i + 1}/{len(smoothed_similarities)} sentence transitions...")
+        if (next_sentence_idx) % 50 == 0:
+            print(f"  Processed {next_sentence_idx}/{len(smoothed_similarities)} sentence transitions...")
     
     # Add final paragraph
     if current_paragraph:
@@ -218,19 +351,14 @@ if __name__ == "__main__":
     print("\n📖 STEP 2: Processing Bible quotes (detecting translation per-quote)...")
     with_quotes, quote_boundaries = process_text(raw, translation=None, auto_detect=True, verbose=True)
     
-    # Save quote-processed version for debugging
-    with open("whisper_quotes.txt", "w", encoding="utf-8") as f:
-        f.write(with_quotes)
-    print("   Quote-processed text saved to: whisper_quotes.txt")
-    
     # Step 3: Segment into paragraphs (respecting quote boundaries)
     # The quote_boundaries are passed so quotes are never split across paragraphs
     print("\n📄 STEP 3: Segmenting into paragraphs...")
     paragraphed = segment_into_paragraphs(
         with_quotes,
         quote_boundaries=quote_boundaries,
-        min_sentences_per_paragraph=10,  # At least 10 sentences per paragraph
-        similarity_threshold=0.65,  # Only break on significant topic shifts
+        min_sentences_per_paragraph=5,  # At least 5 sentences per paragraph
+        similarity_threshold=0.30,  # Break on topic shifts (below mean similarity)
         window_size=3  # Smooth detection over 3 sentence transitions
     )
     
