@@ -26,6 +26,24 @@ except ImportError:
     KEYBERT_AVAILABLE = False
     print("⚠️  KeyBERT not installed. Install with: pip install keybert")
 
+# Import NLTK for part-of-speech tagging (noun filtering)
+try:
+    import nltk
+    from nltk import pos_tag, word_tokenize
+    # Ensure required NLTK data is available
+    try:
+        nltk.data.find('taggers/averaged_perceptron_tagger_eng')
+    except LookupError:
+        nltk.download('averaged_perceptron_tagger_eng', quiet=True)
+    try:
+        nltk.data.find('tokenizers/punkt_tab')
+    except LookupError:
+        nltk.download('punkt_tab', quiet=True)
+    NLTK_AVAILABLE = True
+except ImportError:
+    NLTK_AVAILABLE = False
+    print("⚠️  NLTK not installed. Install with: pip install nltk")
+
 # Import Bible quote processor
 from bible_quote_processor import process_text, QuoteBoundary
 
@@ -39,6 +57,377 @@ if device == "mps":
 # High-quality model for tag extraction (loaded lazily when needed)
 TAG_MODEL_NAME = "all-mpnet-base-v2"  # Highest quality sentence-transformers model
 tag_model = None  # Loaded on first use
+religious_embedding = None  # Cached embedding of religious seed concepts
+
+# Seed concepts that define the semantic space of "Christian religious themes"
+# These phrases capture core religious concepts for semantic similarity filtering
+RELIGIOUS_SEED_CONCEPTS = [
+    # Core Christianity
+    "Christian faith theology belief",
+    "Jesus Christ salvation gospel messiah",
+    "Bible scripture holy word testament",
+    "God almighty creator heaven divine",
+    "Holy Spirit presence comforter",
+    
+    # Spiritual practices
+    "prayer worship praise devotion",
+    "church congregation fellowship ministry",
+    "baptism communion sacrament ordinance",
+    "preaching sermon teaching discipleship",
+    
+    # Theological concepts
+    "sin forgiveness redemption atonement",
+    "grace mercy blessing favor",
+    "resurrection eternal life heaven paradise",
+    "salvation justification sanctification",
+    
+    # Christian virtues and character
+    "faith hope love charity kindness",
+    "righteousness holiness purity obedience",
+    "repentance confession humility meekness",
+    
+    # Biblical themes and events
+    "prophets apostles disciples servants",
+    "covenant promise prophecy fulfillment",
+    "creation fall exodus passover",
+    "crucifixion resurrection ascension",
+    
+    # Christian life
+    "witness testimony evangelism missions",
+    "stewardship tithe offering generosity",
+    "suffering persecution trial endurance",
+    "family marriage parenting children",
+]
+
+# =============================================================================
+# THEOLOGICAL CONCEPTS KNOWLEDGE BASE
+# =============================================================================
+# This is NOT a restricted tag list - it's a semantic knowledge base for
+# inferring what the sermon is ABOUT. The embedding model finds concepts that
+# are semantically similar to the sermon content, even if the exact words
+# never appear in the sermon.
+#
+# Example: A sermon about "following Jesus" and "denying self" will match
+# "Discipleship" because the MEANING is similar, even though "Discipleship"
+# is never spoken.
+#
+# Each entry is: "ConceptName - clarifying description"
+# The description helps the embedding model understand the concept precisely.
+# =============================================================================
+
+THEOLOGICAL_CONCEPTS_KB = [
+    # ==========================================================================
+    # CORE CHRISTIAN DOCTRINES (what Christians believe)
+    # ==========================================================================
+    "Trinity - God as Father Son and Holy Spirit three in one",
+    "Incarnation - God becoming human in Jesus Christ",
+    "Atonement - Christ's death paying for sin",
+    "Redemption - being bought back and rescued from sin",
+    "Justification - being declared righteous before God by faith",
+    "Sanctification - the process of becoming holy and Christlike",
+    "Glorification - the ultimate transformation in heaven",
+    "Salvation - being saved from sin and death through Christ",
+    "Resurrection - rising from the dead as Christ did",
+    "Second Coming - Christ's return at the end of time",
+    "Judgment - God's final evaluation of humanity",
+    "Heaven - eternal life with God",
+    "Hell - eternal separation from God",
+    "Sin - transgression against God's law and nature",
+    "Original Sin - inherited sinful nature from Adam",
+    "Sovereignty - God's supreme authority and control over all",
+    "Providence - God's ongoing care and guidance of creation",
+    "Election - God choosing people for salvation",
+    "Predestination - God's foreordaining of events and salvation",
+    "Free Will - human capacity to make genuine choices",
+    "Inspiration - Scripture being God-breathed",
+    "Inerrancy - the Bible being without error",
+    "Revelation - God making himself known to humanity",
+    
+    # ==========================================================================
+    # CHRISTIAN PRACTICES (what Christians do)
+    # ==========================================================================
+    "Discipleship - following Jesus as a student and apprentice",
+    "Evangelism - sharing the gospel with unbelievers",
+    "Witnessing - testifying to what God has done",
+    "Prayer - communicating with God",
+    "Intercession - praying on behalf of others",
+    "Fasting - abstaining from food for spiritual purposes",
+    "Worship - honoring and adoring God",
+    "Praise - expressing gratitude and admiration to God",
+    "Bible Study - reading and learning Scripture",
+    "Meditation - deeply reflecting on God's word",
+    "Fellowship - Christian community and gathering together",
+    "Church Attendance - participating in corporate worship",
+    "Baptism - water ritual signifying faith and new life",
+    "Communion - Lord's Supper remembering Christ's sacrifice",
+    "Confession - admitting sin to God and others",
+    "Repentance - turning away from sin toward God",
+    "Service - helping others in Jesus' name",
+    "Ministry - using gifts to build up the church",
+    "Missions - taking the gospel to other cultures",
+    "Giving - financially supporting God's work",
+    "Tithing - giving ten percent to the church",
+    "Stewardship - managing God's resources responsibly",
+    "Sabbath - rest and worship on the Lord's day",
+    
+    # ==========================================================================
+    # CHRISTIAN VIRTUES & CHARACTER (who Christians become)
+    # ==========================================================================
+    "Faith - trusting God and believing his promises",
+    "Hope - confident expectation of God's promises",
+    "Love - selfless care for God and others",
+    "Joy - deep gladness independent of circumstances",
+    "Peace - tranquility and wholeness from God",
+    "Patience - endurance and long-suffering",
+    "Kindness - gentle and considerate treatment of others",
+    "Goodness - moral excellence and virtue",
+    "Faithfulness - loyal and reliable commitment",
+    "Gentleness - humble and meek disposition",
+    "Self-Control - mastery over desires and impulses",
+    "Humility - modest view of oneself before God",
+    "Meekness - strength under control",
+    "Obedience - following God's commands",
+    "Holiness - being set apart for God's purposes",
+    "Righteousness - right standing and right living before God",
+    "Purity - moral cleanness and innocence",
+    "Integrity - wholeness and consistency of character",
+    "Wisdom - applying knowledge rightly",
+    "Discernment - distinguishing truth from error",
+    "Courage - boldness in the face of fear",
+    "Perseverance - continuing despite difficulties",
+    "Contentment - satisfaction in any circumstance",
+    "Gratitude - thankfulness to God",
+    "Compassion - feeling and acting on others' suffering",
+    "Mercy - not giving deserved punishment",
+    "Grace - giving undeserved favor",
+    "Forgiveness - releasing others from their debts against us",
+    
+    # ==========================================================================
+    # THEOLOGICAL THEMES (concepts explored in sermons)
+    # ==========================================================================
+    "Grace - God's unmerited favor toward sinners",
+    "Mercy - God withholding deserved judgment",
+    "Blessing - God's favor and good gifts",
+    "Covenant - God's binding agreement with his people",
+    "Promise - God's reliable commitments",
+    "Fulfillment - God keeping his promises",
+    "Prophecy - God revealing future events",
+    "Kingdom of God - God's reign and rule",
+    "Gospel - good news of salvation through Christ",
+    "Cross - Christ's crucifixion and its meaning",
+    "Blood of Christ - the atoning sacrifice",
+    "Sacrifice - giving up something valuable for God",
+    "Offering - presenting gifts to God",
+    "Altar - place of sacrifice and meeting God",
+    "Temple - God's dwelling place",
+    "Tabernacle - portable sanctuary in the wilderness",
+    "Ark of the Covenant - symbol of God's presence",
+    "Glory of God - God's visible splendor and honor",
+    "Presence of God - experiencing God's nearness",
+    "Word of God - Scripture and divine communication",
+    "Law - God's commands and moral standards",
+    "Commandments - God's specific instructions",
+    "Testimony - witness to God's work",
+    "Truth - reality as God defines it",
+    "Light - God's revelation and guidance",
+    "Darkness - sin and spiritual ignorance",
+    "Life - spiritual vitality from God",
+    "Death - physical and spiritual separation from God",
+    "Eternal Life - unending existence with God",
+    
+    # ==========================================================================
+    # BIBLICAL NARRATIVES & EVENTS (stories and history)
+    # ==========================================================================
+    "Creation - God making the world",
+    "Fall of Man - Adam and Eve's sin",
+    "Flood - Noah and God's judgment",
+    "Exodus - Israel's deliverance from Egypt",
+    "Passover - deliverance through the lamb's blood",
+    "Wilderness - Israel's desert wandering",
+    "Promised Land - Canaan as Israel's inheritance",
+    "Conquest - Joshua taking the land",
+    "Judges - cycle of sin and deliverance",
+    "Kingdom - Israel under Saul David and Solomon",
+    "Exile - Israel's captivity in Babylon",
+    "Return - restoration from exile",
+    "Nativity - Jesus' birth in Bethlehem",
+    "Baptism of Jesus - Spirit descending like a dove",
+    "Temptation - Jesus overcoming Satan in desert",
+    "Ministry of Jesus - teaching healing and miracles",
+    "Sermon on the Mount - Jesus' ethical teaching",
+    "Parables - Jesus' teaching stories",
+    "Miracles - supernatural signs of God's power",
+    "Transfiguration - Jesus revealed in glory",
+    "Passion - Jesus' suffering and death",
+    "Crucifixion - Jesus dying on the cross",
+    "Burial - Jesus in the tomb",
+    "Empty Tomb - evidence of resurrection",
+    "Resurrection Appearances - Jesus seen alive",
+    "Ascension - Jesus returning to heaven",
+    "Pentecost - Holy Spirit coming upon believers",
+    "Early Church - first Christian community",
+    "Persecution - suffering for faith",
+    "Martyrdom - dying for faith in Christ",
+    
+    # ==========================================================================
+    # CHRISTIAN LIFE & RELATIONSHIPS (living out faith)
+    # ==========================================================================
+    "Marriage - covenant union between husband and wife",
+    "Family - household as unit of discipleship",
+    "Parenting - raising children in the faith",
+    "Children - young ones in God's family",
+    "Singleness - unmarried life for God's purposes",
+    "Friendship - close relationships among believers",
+    "Community - life together in the body of Christ",
+    "Church - gathered believers as Christ's body",
+    "Leadership - guiding others in the faith",
+    "Pastoring - shepherding God's flock",
+    "Teaching - instructing in the faith",
+    "Preaching - proclaiming God's word",
+    "Mentoring - training younger believers",
+    "Accountability - mutual responsibility in faith",
+    "Unity - oneness among believers",
+    "Diversity - variety of gifts and backgrounds",
+    "Work - labor as service to God",
+    "Vocation - calling to specific work",
+    "Rest - sabbath and refreshment",
+    "Leisure - recreation and enjoyment",
+    "Money - financial stewardship",
+    "Possessions - material goods and simplicity",
+    "Generosity - giving freely to others",
+    "Hospitality - welcoming strangers and guests",
+    "Justice - right treatment of others",
+    "Compassion Ministry - caring for the needy",
+    "Social Concern - addressing society's problems",
+    
+    # ==========================================================================
+    # SPIRITUAL WARFARE & GROWTH (inner life)
+    # ==========================================================================
+    "Spiritual Warfare - battle against evil forces",
+    "Temptation - enticement to sin",
+    "Sin - falling short of God's standard",
+    "Confession - admitting wrongdoing",
+    "Forgiveness - being pardoned by God",
+    "Cleansing - being made pure from sin",
+    "Renewal - being made new spiritually",
+    "Transformation - being changed by God",
+    "Growth - maturing in faith",
+    "Fruit of the Spirit - evidence of Spirit's work",
+    "Spiritual Gifts - abilities given by the Spirit",
+    "Calling - God's summons to purpose",
+    "Purpose - God's intention for life",
+    "Destiny - God's plan for the future",
+    "Identity in Christ - who we are in Jesus",
+    "Adoption - being made God's children",
+    "Inheritance - what believers receive from God",
+    "Security - assurance of salvation",
+    "Assurance - confidence in relationship with God",
+    "Doubt - struggling with belief",
+    "Suffering - enduring hardship and pain",
+    "Trials - tests of faith",
+    "Persecution - opposition for following Christ",
+    "Endurance - persisting through difficulty",
+    "Victory - overcoming through Christ",
+    "Deliverance - being set free from bondage",
+    "Healing - restoration of body soul or spirit",
+    "Comfort - God's consolation in sorrow",
+    "Peace of God - supernatural tranquility",
+    
+    # ==========================================================================
+    # ESCHATOLOGY (end times)
+    # ==========================================================================
+    "End Times - events before Christ's return",
+    "Signs of the Times - indicators of the end",
+    "Tribulation - period of intense suffering",
+    "Antichrist - opponent of Christ in end times",
+    "Rapture - believers caught up to meet Christ",
+    "Second Coming - Christ's return to earth",
+    "Millennium - thousand year reign",
+    "Final Judgment - God's ultimate verdict",
+    "Lake of Fire - place of eternal punishment",
+    "New Heaven - renewed creation above",
+    "New Earth - renewed creation below",
+    "New Jerusalem - heavenly city",
+    "Eternity - endless existence with God",
+    "Resurrection of the Dead - all rising for judgment",
+    "Rewards - recompense for faithful service",
+    "Crowns - symbols of eternal reward",
+    
+    # ==========================================================================
+    # KEY BIBLICAL FIGURES (people to learn from)
+    # ==========================================================================
+    "Abraham - father of faith",
+    "Moses - lawgiver and deliverer",
+    "David - shepherd king after God's heart",
+    "Solomon - wisest king",
+    "Elijah - prophet of fire",
+    "Isaiah - messianic prophet",
+    "Jeremiah - weeping prophet",
+    "Daniel - faithful in exile",
+    "John the Baptist - forerunner of Christ",
+    "Peter - rock and apostle",
+    "Paul - apostle to Gentiles",
+    "Mary - mother of Jesus",
+    "Mary Magdalene - witness to resurrection",
+    "Apostles - sent ones of Jesus",
+    "Prophets - spokespersons for God",
+    "Patriarchs - founding fathers of Israel",
+]
+
+# Cached embeddings for theological concepts (computed once, reused)
+theological_concept_embeddings = None
+theological_concept_names = None  # Clean names without descriptions
+
+# Stop words to exclude from tag extraction
+COMMON_STOP_WORDS = {
+    # Standard English stop words
+    'the', 'and', 'is', 'in', 'it', 'to', 'of', 'for', 'on', 'with', 'as', 'at', 'by',
+    'this', 'that', 'from', 'or', 'an', 'be', 'was', 'were', 'been', 'being', 'have',
+    'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may',
+    'might', 'must', 'shall', 'can', 'need', 'dare', 'ought', 'used', 'a', 'about',
+    'above', 'after', 'again', 'against', 'all', 'am', 'any', 'are', 'because',
+    'before', 'below', 'between', 'both', 'but', 'cannot', 'come', 'came', 'down',
+    'during', 'each', 'few', 'further', 'get', 'go', 'going', 'gone', 'got', 'having',
+    'he', 'she', 'her', 'here', 'him', 'his', 'how', 'if', 'into', 'its', 'just',
+    'know', 'like', 'make', 'me', 'more', 'most', 'my', 'no', 'not', 'now', 'only',
+    'other', 'our', 'out', 'over', 'own', 'said', 'same', 'see', 'so', 'some', 'such',
+    'take', 'than', 'their', 'them', 'then', 'there', 'these', 'they', 'through',
+    'too', 'under', 'up', 'very', 'want', 'way', 'we', 'well', 'what', 'when',
+    'where', 'which', 'while', 'who', 'why', 'you', 'your', 'also', 'back', 'even',
+    'first', 'look', 'new', 'now', 'one', 'people', 'say', 'think', 'time', 'two',
+    'use', 'tell', 'told', 'thing', 'things', 'man', 'men', 'let', 'put', 'many',
+    'much', 'every', 'still', 'something', 'someone', 'anything', 'everything',
+    'nothing', 'right', 'really', 'going', 'know', 'gonna', 'wanna', 'yeah', 'okay',
+    'yes', 'hey', 'oh', 'uh', 'um', 'ah', 'well', 'just', 'actually', 'basically',
+    # Sermon/Bible structure words (not thematic)
+    'amen', 'chapter', 'verse', 'verses', 'book', 'passage', 'text', 'scripture',
+    'says', 'saying', 'word', 'words', 'today', 'tonight', 'morning', 'evening',
+    'week', 'last', 'next', 'year', 'years', 'day', 'days', 'night', 'nights',
+    # Archaic pronouns (often misclassified as nouns)
+    'thy', 'thee', 'thou', 'thine', 'ye', 'hath', 'doth', 'art', 'shalt', 'wilt',
+    # Generic verbs that don't make good tags
+    'provided', 'recounting', 'talking', 'speaking', 'reading', 'looking',
+    'started', 'beginning', 'ended', 'ending', 'continued', 'continuing',
+    'remember', 'mentioned', 'stated', 'written', 'found', 'given', 'taken',
+    # Common religious verbs (use noun forms instead)
+    'pray', 'praying', 'prayed', 'worship', 'worshipping', 'worshiped',
+    'serve', 'serving', 'served', 'believe', 'believing', 'believed',
+    'love', 'loving', 'loved', 'give', 'giving', 'gave', 'trust', 'trusting',
+    'bless', 'blessing', 'blessed', 'save', 'saving', 'saved', 'redeem',
+    'forgive', 'forgiving', 'forgave', 'praise', 'praising', 'praised',
+}
+
+# Bible book names (these should be in scripture references, not tags)
+BIBLE_BOOK_NAMES = {
+    'genesis', 'exodus', 'leviticus', 'numbers', 'deuteronomy', 'joshua', 'judges',
+    'ruth', 'samuel', 'kings', 'chronicles', 'ezra', 'nehemiah', 'esther', 'job',
+    'psalms', 'psalm', 'proverbs', 'ecclesiastes', 'song', 'isaiah', 'jeremiah',
+    'lamentations', 'ezekiel', 'daniel', 'hosea', 'joel', 'amos', 'obadiah', 'jonah',
+    'micah', 'nahum', 'habakkuk', 'zephaniah', 'haggai', 'zechariah', 'malachi',
+    'matthew', 'mark', 'luke', 'john', 'acts', 'romans', 'corinthians', 'galatians',
+    'ephesians', 'philippians', 'colossians', 'thessalonians', 'timothy', 'titus',
+    'philemon', 'hebrews', 'james', 'peter', 'jude', 'revelation', 'revelations',
+}
 
 def transcribe_audio(file_path: str) -> str:
     print("Transcribing audio...")
@@ -466,140 +855,305 @@ def segment_into_paragraphs(text: str, quote_boundaries: List[QuoteBoundary] = N
     return '\n\n'.join(paragraphs)
 
 
-# Curated vocabulary of valid religious/theological tags for Christian/Baptist/Evangelical sermons
-# These are the ONLY words that can become tags - ensures religious relevance
-RELIGIOUS_TAG_VOCABULARY = {
-    # Core Christian Theology
-    'salvation', 'redemption', 'justification', 'sanctification', 'glorification',
-    'atonement', 'propitiation', 'reconciliation', 'forgiveness', 'mercy', 'grace',
-    'faith', 'belief', 'trust', 'hope', 'love', 'charity', 'righteousness',
-    'holiness', 'purity', 'obedience', 'repentance', 'confession', 'conversion',
+def compute_religious_embedding() -> np.ndarray:
+    """
+    Compute the average embedding of religious seed concepts.
+    This embedding represents the semantic 'center' of Christian religious themes.
+    """
+    global religious_embedding, tag_model
     
-    # God and Trinity
-    'trinity', 'godhead', 'deity', 'divinity', 'sovereignty', 'omnipotence',
-    'omniscience', 'omnipresence', 'immutability', 'eternality', 'creator',
+    if religious_embedding is not None:
+        return religious_embedding
     
-    # Jesus Christ
-    'messiah', 'christ', 'savior', 'lord', 'redeemer', 'mediator', 'advocate',
-    'lamb', 'shepherd', 'king', 'prophet', 'priest', 'incarnation', 'virgin',
-    'crucifixion', 'resurrection', 'ascension', 'intercession', 'return',
+    # Ensure tag model is loaded
+    if tag_model is None:
+        tag_model = SentenceTransformer(TAG_MODEL_NAME)
+        if device == "mps":
+            tag_model = tag_model.to(device)
     
-    # Holy Spirit
-    'spirit', 'comforter', 'counselor', 'advocate', 'indwelling', 'filling',
-    'anointing', 'empowerment', 'conviction', 'illumination',
+    # Encode all seed concepts and compute their centroid
+    embeddings = tag_model.encode(RELIGIOUS_SEED_CONCEPTS)
+    religious_embedding = np.mean(embeddings, axis=0)
+    return religious_embedding
+
+
+def get_religious_relevance(word: str, religious_emb: np.ndarray) -> float:
+    """
+    Compute cosine similarity between a word and the religious concepts embedding.
+    Higher values indicate the word is more related to Christian religious themes.
     
-    # Scripture and Revelation
-    'inspiration', 'inerrancy', 'infallibility', 'authority', 'revelation',
-    'prophecy', 'fulfillment', 'covenant', 'promise', 'commandment',
+    Args:
+        word: The keyword to evaluate
+        religious_emb: The pre-computed religious concepts embedding
     
-    # Sin and Fall
-    'sin', 'transgression', 'iniquity', 'wickedness', 'depravity', 'corruption',
-    'temptation', 'flesh', 'worldliness', 'idolatry', 'pride', 'rebellion',
+    Returns:
+        Cosine similarity score between 0 and 1
+    """
+    global tag_model
+    word_emb = tag_model.encode([word])[0]
+    similarity = np.dot(word_emb, religious_emb) / (np.linalg.norm(word_emb) * np.linalg.norm(religious_emb))
+    return float(similarity)
+
+
+def compute_concept_embeddings() -> tuple:
+    """
+    Compute embeddings for all theological concepts in the knowledge base.
+    This is done once and cached for fast semantic matching.
     
-    # Salvation Process
-    'election', 'predestination', 'calling', 'regeneration', 'adoption',
-    'imputation', 'perseverance', 'assurance', 'security', 'eternal',
+    Returns:
+        Tuple of (concept_names: List[str], embeddings: np.ndarray)
+        concept_names are the clean concept names (before " - ")
+        embeddings are the full concept embeddings (including descriptions)
+    """
+    global theological_concept_embeddings, theological_concept_names, tag_model
     
-    # Church and Community
-    'church', 'congregation', 'fellowship', 'communion', 'baptism', 'ordinance',
-    'sacrament', 'membership', 'discipline', 'unity', 'body', 'bride',
+    if theological_concept_embeddings is not None:
+        return theological_concept_names, theological_concept_embeddings
     
-    # Christian Life
-    'discipleship', 'stewardship', 'service', 'ministry', 'witness', 'testimony',
-    'evangelism', 'missions', 'prayer', 'worship', 'praise', 'thanksgiving',
-    'fasting', 'meditation', 'devotion', 'consecration', 'dedication',
+    # Ensure tag model is loaded
+    if tag_model is None:
+        tag_model = SentenceTransformer(TAG_MODEL_NAME)
+        if device == "mps":
+            tag_model = tag_model.to(device)
     
-    # Spiritual Warfare
-    'warfare', 'armor', 'victory', 'deliverance', 'freedom', 'bondage',
-    'stronghold', 'spiritual', 'demonic', 'satan', 'devil', 'angels',
+    # Extract clean concept names (before " - ") for display
+    # But embed the full description for better semantic matching
+    theological_concept_names = []
+    for concept in THEOLOGICAL_CONCEPTS_KB:
+        # Split on " - " to get just the name
+        name = concept.split(" - ")[0].strip()
+        theological_concept_names.append(name)
     
-    # End Times / Eschatology
-    'rapture', 'tribulation', 'millennium', 'judgment', 'heaven', 'hell',
-    'eternity', 'paradise', 'kingdom', 'throne', 'glory', 'reward',
+    # Encode the FULL concepts (including descriptions) for better semantic matching
+    theological_concept_embeddings = tag_model.encode(THEOLOGICAL_CONCEPTS_KB)
     
-    # Biblical Characters and Groups
-    'apostle', 'disciple', 'prophet', 'patriarch', 'priest', 'levite',
-    'pharisee', 'gentile', 'jew', 'israelite', 'hebrew', 'christian',
+    return theological_concept_names, theological_concept_embeddings
+
+
+def chunk_text(text: str, max_words: int = 400, overlap_words: int = 50) -> List[str]:
+    """
+    Split text into overlapping chunks for better semantic coverage.
     
-    # Biblical Events and Themes
-    'creation', 'fall', 'flood', 'exodus', 'passover', 'wilderness',
-    'promised', 'exile', 'restoration', 'birth', 'death', 'burial',
-    'christmas', 'easter', 'pentecost', 'advent',
+    Args:
+        text: Text to chunk
+        max_words: Maximum words per chunk
+        overlap_words: Words to overlap between chunks
+        
+    Returns:
+        List of text chunks
+    """
+    words = text.split()
+    if len(words) <= max_words:
+        return [text]
     
-    # Virtues and Fruit of Spirit
-    'patience', 'kindness', 'goodness', 'faithfulness', 'gentleness',
-    'self-control', 'humility', 'meekness', 'temperance', 'contentment',
+    chunks = []
+    start = 0
+    while start < len(words):
+        end = min(start + max_words, len(words))
+        chunk = ' '.join(words[start:end])
+        chunks.append(chunk)
+        
+        # Move start forward, accounting for overlap
+        start = end - overlap_words
+        if start >= len(words) - overlap_words:
+            break
     
-    # Biblical Locations (significant ones)
-    'jerusalem', 'bethlehem', 'nazareth', 'galilee', 'calvary', 'golgotha',
-    'gethsemane', 'jordan', 'egypt', 'babylon', 'israel', 'zion',
+    return chunks
+
+
+def get_semantic_themes(text: str, top_k: int = 15, min_similarity: float = 0.35,
+                        verbose: bool = True) -> List[tuple]:
+    """
+    Infer semantic themes from text by comparing against the theological concepts KB.
     
-    # Family and Relationships
-    'marriage', 'family', 'children', 'parenting', 'husband', 'wife',
-    'father', 'mother', 'brother', 'sister', 'widow', 'orphan',
+    This finds concepts the sermon is semantically ABOUT, even if those exact words
+    never appear in the text. For example, a sermon about "following Jesus" and 
+    "denying self" will match "Discipleship" through semantic similarity.
     
-    # Money and Possessions
-    'tithe', 'offering', 'giving', 'generosity', 'treasure', 'riches',
-    'poverty', 'provision', 'blessing', 'prosperity',
+    Args:
+        text: The sermon text to analyze
+        top_k: Maximum number of themes to return
+        min_similarity: Minimum cosine similarity to include a theme (default: 0.35)
+        verbose: Whether to print progress messages
+        
+    Returns:
+        List of (concept_name, similarity_score) tuples, sorted by score descending
+    """
+    global tag_model
     
-    # Suffering and Trials
-    'suffering', 'persecution', 'trial', 'tribulation', 'affliction',
-    'comfort', 'healing', 'restoration', 'hope', 'endurance',
+    # Ensure model is loaded
+    if tag_model is None:
+        if verbose:
+            print(f"   Loading semantic model ({TAG_MODEL_NAME})...")
+        tag_model = SentenceTransformer(TAG_MODEL_NAME)
+        if device == "mps":
+            tag_model = tag_model.to(device)
     
-    # Leadership and Authority
-    'pastor', 'elder', 'deacon', 'bishop', 'overseer', 'shepherd',
-    'teacher', 'preacher', 'evangelist', 'missionary', 'servant',
+    # Get concept embeddings (cached)
+    if verbose:
+        print("   Loading theological concepts knowledge base...")
+    concept_names, concept_embeddings = compute_concept_embeddings()
+    if verbose:
+        print(f"   Loaded {len(concept_names)} theological concepts")
     
-    # Worship Elements
-    'hymn', 'psalm', 'song', 'altar', 'sacrifice', 'tabernacle', 'temple',
-    'ark', 'incense', 'oil', 'bread', 'wine', 'cup', 'cross', 'blood',
+    # Chunk the text for better semantic coverage
+    if verbose:
+        print("   Chunking text for semantic analysis...")
+    chunks = chunk_text(text, max_words=400, overlap_words=50)
+    if verbose:
+        print(f"   Created {len(chunks)} text chunks")
     
-    # Magi/Christmas specific
-    'magi', 'wisemen', 'star', 'gold', 'frankincense', 'myrrh', 'gifts',
-    'herod', 'angels', 'shepherds', 'manger', 'nativity', 'immanuel',
-}
+    # Embed all chunks
+    if verbose:
+        print("   Computing text embeddings...")
+    chunk_embeddings = tag_model.encode(chunks)
+    
+    # Create a combined sermon embedding (average of chunks)
+    sermon_embedding = np.mean(chunk_embeddings, axis=0)
+    
+    # Also compute per-chunk similarities for more nuanced matching
+    # This helps catch themes that appear in specific parts of the sermon
+    all_similarities = {}
+    
+    # Method 1: Compare sermon-level embedding to each concept
+    for i, (name, concept_emb) in enumerate(zip(concept_names, concept_embeddings)):
+        cos_sim = np.dot(sermon_embedding, concept_emb) / (
+            np.linalg.norm(sermon_embedding) * np.linalg.norm(concept_emb)
+        )
+        all_similarities[name] = cos_sim
+    
+    # Method 2: Also track max per-chunk similarity (catches localized themes)
+    chunk_max_similarities = {}
+    for chunk_emb in chunk_embeddings:
+        for i, (name, concept_emb) in enumerate(zip(concept_names, concept_embeddings)):
+            cos_sim = np.dot(chunk_emb, concept_emb) / (
+                np.linalg.norm(chunk_emb) * np.linalg.norm(concept_emb)
+            )
+            if name not in chunk_max_similarities or cos_sim > chunk_max_similarities[name]:
+                chunk_max_similarities[name] = cos_sim
+    
+    # Combine both methods: use weighted average of overall and max-chunk similarity
+    # This ensures both sermon-wide themes and localized themes are captured
+    combined_similarities = {}
+    for name in concept_names:
+        overall = all_similarities.get(name, 0)
+        max_chunk = chunk_max_similarities.get(name, 0)
+        # Weight: 60% overall similarity, 40% max chunk similarity
+        combined_similarities[name] = 0.6 * overall + 0.4 * max_chunk
+    
+    # Sort by combined similarity
+    sorted_concepts = sorted(combined_similarities.items(), key=lambda x: x[1], reverse=True)
+    
+    # Filter by minimum similarity and take top-k
+    results = [(name, score) for name, score in sorted_concepts if score >= min_similarity][:top_k]
+    
+    # Remove duplicate concepts (some concepts appear in multiple categories with same name)
+    seen_names = set()
+    unique_results = []
+    for name, score in results:
+        # Normalize name (some concepts like "Grace" appear twice)
+        if name not in seen_names:
+            seen_names.add(name)
+            unique_results.append((name, score))
+    
+    if verbose:
+        print(f"   ✓ Found {len(unique_results)} semantic themes")
+        for name, score in unique_results[:5]:
+            print(f"      • {name}: {score:.3f}")
+    
+    return unique_results
+
+
+def is_noun(word: str) -> bool:
+    """
+    Check if a word is a noun using NLTK part-of-speech tagging.
+    Returns True for nouns (NN, NNS, NNP, NNPS).
+    """
+    if not NLTK_AVAILABLE:
+        return True  # If NLTK not available, don't filter
+    
+    try:
+        # POS tag the word in isolation
+        tagged = pos_tag([word])
+        if tagged:
+            pos = tagged[0][1]
+            # NN=singular noun, NNS=plural noun, NNP=proper noun, NNPS=plural proper noun
+            return pos.startswith('NN')
+        return False
+    except Exception:
+        return True  # On error, don't filter
+
+
+def extract_nouns_from_text(text: str) -> set:
+    """
+    Extract all unique nouns from the text using NLTK POS tagging.
+    This is used to pre-filter candidates for KeyBERT so only nouns are considered.
+    
+    Args:
+        text: The text to extract nouns from
+        
+    Returns:
+        Set of unique noun words (lowercase)
+    """
+    if not NLTK_AVAILABLE:
+        return set()  # Return empty set if NLTK not available
+    
+    try:
+        # Tokenize and POS tag the entire text
+        tokens = word_tokenize(text.lower())
+        tagged = pos_tag(tokens)
+        
+        # Extract words tagged as nouns
+        nouns = set()
+        for word, pos in tagged:
+            # NN=singular noun, NNS=plural noun, NNP=proper noun, NNPS=plural proper noun
+            if pos.startswith('NN') and len(word) >= 3 and word.isalpha():
+                nouns.add(word)
+        
+        return nouns
+    except Exception:
+        return set()
 
 
 def extract_tags(text: str, quote_boundaries: List[QuoteBoundary] = None,
-                 min_occurrences: int = 3, min_score: float = 0.20,
-                 max_tags: int = 20, verbose: bool = True) -> List[str]:
+                 min_occurrences: int = 3, min_keybert_score: float = 0.15,
+                 min_religious_relevance: float = 0.35, max_tags: int = 10, 
+                 nouns_only: bool = True, verbose: bool = True,
+                 use_semantic_inference: bool = True, semantic_threshold: float = 0.40) -> List[str]:
     """
-    Extract religious keyword tags from a Christian/Baptist/Evangelical sermon transcript.
+    Extract tags from a Christian sermon transcript using a hybrid approach:
     
-    Uses a curated vocabulary of religious terms and requires significant evidence
-    (multiple occurrences) in the text. Only returns tags with strong textual support.
+    1. SEMANTIC INFERENCE (primary): Infers what the sermon is ABOUT by comparing
+       its embedding against a comprehensive theological concepts knowledge base.
+       This finds themes like "Discipleship" from a sermon about "following Jesus"
+       even if the word "Discipleship" never appears.
+    
+    2. EXPLICIT EXTRACTION (secondary): Uses KeyBERT to find religiously-relevant
+       keywords that actually appear in the text. These supplement the semantic
+       themes with sermon-specific vocabulary.
+    
+    The semantic inference approach is NOT a restrictive "allowed tags" list.
+    It's a semantic knowledge base that enables the system to understand what
+    concepts the sermon RELATES TO, not just what words it CONTAINS.
     
     Args:
         text: The transcript text (with or without paragraphs)
         quote_boundaries: Quote boundaries to exclude quoted Bible text from analysis
-        min_occurrences: Minimum times a word must appear to be considered (default: 3)
-        min_score: Minimum KeyBERT relevance score to include (default: 0.25)
-        max_tags: Maximum number of tags to return (default: 20)
+        min_occurrences: Minimum times a word must appear (for explicit extraction)
+        min_keybert_score: Minimum KeyBERT relevance score (for explicit extraction)
+        min_religious_relevance: Minimum cosine similarity to religious concepts
+        max_tags: Maximum number of tags to return (default: 10)
+        nouns_only: Extract only nouns as candidates for explicit extraction
         verbose: Whether to print progress messages
+        use_semantic_inference: Use semantic theme inference (default: True)
+        semantic_threshold: Minimum similarity for semantic themes (default: 0.40)
     
     Returns:
-        List of keyword strings (only those with significant evidence), or empty list
+        List of tag strings combining semantic themes and explicit keywords
     """
-    global tag_model
+    global tag_model, religious_embedding
     
-    if not KEYBERT_AVAILABLE:
-        if verbose:
-            print("   ⚠️  KeyBERT not installed")
-            print("   Install with: pip install keybert")
-        return []
-    
-    # Load the high-quality model on first use
-    if tag_model is None:
-        if verbose:
-            print(f"   Loading high-quality model ({TAG_MODEL_NAME})...")
-        tag_model = SentenceTransformer(TAG_MODEL_NAME)
-        if device == "mps":
-            tag_model = tag_model.to(device)
-            if verbose:
-                print(f"   ✓ Tag model loaded on GPU")
-    
-    if verbose:
-        print("   Analyzing sermon for religious themes...")
+    final_tags = []
     
     # Remove Bible quotes from the text to avoid extracting quoted scripture phrases
     clean_text = text.lower()
@@ -610,69 +1164,152 @@ def extract_tags(text: str, quote_boundaries: List[QuoteBoundary] = None,
         if verbose:
             print(f"   Excluded {len(quote_boundaries)} Bible quotes from analysis")
     
-    # Count occurrences of each religious term in the text
-    word_counts = {}
-    for term in RELIGIOUS_TAG_VOCABULARY:
-        # Use word boundary matching to avoid partial matches
-        pattern = r'\b' + re.escape(term) + r'\b'
-        count = len(re.findall(pattern, clean_text, re.IGNORECASE))
-        if count >= min_occurrences:
-            word_counts[term] = count
-    
-    if not word_counts:
+    # =========================================================================
+    # STEP 1: SEMANTIC THEME INFERENCE
+    # This finds concepts the sermon is ABOUT, not just words it contains
+    # =========================================================================
+    if use_semantic_inference:
         if verbose:
-            print("   No religious terms found with sufficient evidence")
-        return []
+            print("\n   📚 SEMANTIC INFERENCE: What is this sermon about?")
+        
+        try:
+            semantic_themes = get_semantic_themes(
+                clean_text, 
+                top_k=max_tags,  # Get up to max_tags semantic themes
+                min_similarity=semantic_threshold,
+                verbose=verbose
+            )
+            
+            # Add semantic themes to final tags (these are primary)
+            for theme_name, score in semantic_themes:
+                if theme_name not in final_tags:
+                    final_tags.append(theme_name)
+                    
+            if verbose and semantic_themes:
+                print(f"   ✓ Inferred {len(semantic_themes)} semantic themes from sermon content")
+                
+        except Exception as e:
+            if verbose:
+                print(f"   ⚠️  Semantic inference error: {str(e)}")
+    
+    # =========================================================================
+    # STEP 2: EXPLICIT KEYWORD EXTRACTION (supplement semantic themes)
+    # This finds specific words that appear frequently in the sermon
+    # =========================================================================
+    if len(final_tags) < max_tags and KEYBERT_AVAILABLE:
+        if verbose:
+            print("\n   🔍 EXPLICIT EXTRACTION: What words appear in this sermon?")
+        
+        try:
+            # Load the high-quality model on first use
+            if tag_model is None:
+                if verbose:
+                    print(f"   Loading semantic model ({TAG_MODEL_NAME})...")
+                tag_model = SentenceTransformer(TAG_MODEL_NAME)
+                if device == "mps":
+                    tag_model = tag_model.to(device)
+                    if verbose:
+                        print(f"   ✓ Model loaded on GPU")
+            
+            # Compute religious concepts embedding (cached after first call)
+            religious_emb = compute_religious_embedding()
+            
+            kw_model = KeyBERT(model=tag_model)
+            
+            # Pre-extract nouns from the text if nouns_only is enabled
+            noun_candidates = None
+            if nouns_only and NLTK_AVAILABLE:
+                all_nouns = extract_nouns_from_text(clean_text)
+                
+                # Filter out stop words and Bible book names from nouns
+                noun_candidates = [
+                    noun for noun in all_nouns 
+                    if noun not in COMMON_STOP_WORDS and noun not in BIBLE_BOOK_NAMES
+                ]
+                
+                if verbose:
+                    print(f"   Found {len(noun_candidates)} unique nouns as candidates")
+            
+            # Extract keywords
+            if noun_candidates:
+                keywords = kw_model.extract_keywords(
+                    clean_text,
+                    candidates=noun_candidates,
+                    top_n=min(100, len(noun_candidates)),
+                    use_mmr=True,
+                    diversity=0.5,
+                )
+            else:
+                keywords = kw_model.extract_keywords(
+                    clean_text,
+                    keyphrase_ngram_range=(1, 1),
+                    stop_words='english',
+                    top_n=100,
+                    use_mmr=True,
+                    diversity=0.5,
+                )
+            
+            # Filter keywords and add to tags (avoid duplicating semantic themes)
+            explicit_candidates = []
+            for keyword, keybert_score in keywords:
+                word = keyword.lower().strip()
+                
+                # Skip if already covered by semantic themes (case-insensitive check)
+                if any(word in theme.lower() or theme.lower() in word for theme in final_tags):
+                    continue
+                
+                # Skip basic filters
+                if len(word) < 3 or word in COMMON_STOP_WORDS or word in BIBLE_BOOK_NAMES:
+                    continue
+                
+                if keybert_score < min_keybert_score:
+                    continue
+                
+                # Count occurrences in text
+                pattern = r'\b' + re.escape(word) + r'\b'
+                count = len(re.findall(pattern, clean_text, re.IGNORECASE))
+                if count < min_occurrences:
+                    continue
+                
+                # Compute religious relevance
+                religious_score = get_religious_relevance(word, religious_emb)
+                
+                if religious_score >= min_religious_relevance:
+                    explicit_candidates.append({
+                        'word': word.title(),
+                        'keybert_score': keybert_score,
+                        'religious_score': religious_score,
+                        'occurrences': count,
+                        'combined_score': religious_score * 0.5 + keybert_score * 0.3 + min(count / 20, 0.2)
+                    })
+            
+            # Sort and add best explicit keywords
+            explicit_candidates.sort(key=lambda x: x['combined_score'], reverse=True)
+            
+            added_explicit = 0
+            for candidate in explicit_candidates:
+                if len(final_tags) >= max_tags:
+                    break
+                # Final check: not similar to existing tags
+                if not any(candidate['word'].lower() in tag.lower() or tag.lower() in candidate['word'].lower() 
+                          for tag in final_tags):
+                    final_tags.append(candidate['word'])
+                    added_explicit += 1
+            
+            if verbose and added_explicit > 0:
+                print(f"   ✓ Added {added_explicit} explicit keywords to supplement themes")
+                
+        except Exception as e:
+            if verbose:
+                print(f"   ⚠️  Explicit extraction error: {str(e)}")
     
     if verbose:
-        print(f"   Found {len(word_counts)} terms with {min_occurrences}+ occurrences")
+        print(f"\n   ✅ Final tag set: {len(final_tags)} tags")
+        for tag in final_tags:
+            print(f"      • {tag}")
     
-    try:
-        # Use KeyBERT with the high-quality model to rank the candidate terms
-        # by semantic relevance to the overall sermon content
-        kw_model = KeyBERT(model=tag_model)
-        
-        # Get the candidates that passed the occurrence filter
-        candidates = list(word_counts.keys())
-        
-        # Extract keywords using the candidates parameter
-        # This tells KeyBERT to only consider our religious vocabulary
-        keywords = kw_model.extract_keywords(
-            clean_text,
-            candidates=candidates,
-            top_n=len(candidates),  # Get scores for all candidates
-            use_mmr=True,
-            diversity=0.5,  # Moderate diversity
-        )
-        
-        # Filter by score and format results
-        final_tags = []
-        for keyword, score in keywords:
-            if score >= min_score:
-                # Capitalize for display
-                tag = keyword.title()
-                final_tags.append((tag, score, word_counts[keyword.lower()]))
-        
-        # Sort by a combination of score and frequency
-        # Higher score and higher frequency = better tag
-        final_tags.sort(key=lambda x: x[1] * (1 + x[2] / 10), reverse=True)
-        
-        # Take top tags up to max
-        result_tags = [tag for tag, score, count in final_tags[:max_tags]]
-        
-        if verbose:
-            print(f"   ✓ Extracted {len(result_tags)} religious tags")
-            if result_tags and len(final_tags) > 0:
-                # Show evidence for top tags
-                for tag, score, count in final_tags[:min(3, len(final_tags))]:
-                    print(f"      • {tag}: {count} occurrences, relevance {score:.2f}")
-        
-        return result_tags
-        
-    except Exception as e:
-        if verbose:
-            print(f"   ⚠️  Error extracting tags: {str(e)}")
-        return []
+    return final_tags
+
 
 
 if __name__ == "__main__":

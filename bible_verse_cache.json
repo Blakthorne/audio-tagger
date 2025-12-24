@@ -2097,5 +2097,792 @@
     "book": "Leviticus",
     "chapter": 2,
     "translation": "KJV"
+  },
+  "Matthew 6:21|KJV": {
+    "text": "For where your treasure is, there will your heart be also.",
+    "verse": 21,
+    "book": "Matthew",
+    "chapter": 6,
+    "translation": "KJV"
+  },
+  "Matthew 1:18|KJV": {
+    "text": "Now the birth of Jesus Christ was on this wise: When as his mother Mary was espoused to Joseph, before they came together, she was found with child of the Holy Ghost.",
+    "verse": 18,
+    "book": "Matthew",
+    "chapter": 1,
+    "translation": "KJV"
+  },
+  "Job 33:4|KJV": {
+    "text": "The Spirit of God hath made me, and the breath of the Almighty hath given me life.",
+    "verse": 4,
+    "book": "Job",
+    "chapter": 33,
+    "translation": "KJV"
+  },
+  "Genesis 2:7|KJV": {
+    "text": "And the LORD God formed man of the dust of the ground, and breathed into his nostrils the breath of life; and man became a living soul.",
+    "verse": 7,
+    "book": "Genesis",
+    "chapter": 2,
+    "translation": "KJV"
+  },
+  "Matthew 5:44-45|KJV": {
+    "text": "But I say unto you, Love your enemies, bless them that curse you, do good to them that hate you, and pray for them which despitefully use you, and persecute you; That ye may be the children of your Father which is in heaven: for he maketh his sun to rise on the evil and on the good, and sendeth rain on the just and on the unjust.",
+    "verses": [
+      {
+        "pk": 2623454,
+        "translation": "KJV",
+        "book": 40,
+        "chapter": 5,
+        "verse": 44,
+        "text": "But<S>1161</S> I<S>1473</S> say<S>3004</S> unto you<S>5213</S>, Love<S>25</S> your<S>5216</S> enemies<S>2190</S>, bless<S>2127</S> them that curse<S>2672</S> you<S>5209</S>, do<S>4160</S> good<S>2573</S> to them that hate<S>3404</S> you<S>5209</S>, and<S>2532</S> pray<S>4336</S> for<S>5228</S> them which<S>3588</S> despitefully use<S>1908</S> you<S>5209</S>, and<S>2532</S> persecute<S>1377</S> you<S>5209</S>;"
+      },
+      {
+        "pk": 2623455,
+        "translation": "KJV",
+        "book": 40,
+        "chapter": 5,
+        "verse": 45,
+        "text": "That<S>3704</S> ye may be<S>1096</S> the children<S>5207</S> of your<S>5216</S> Father<S>3962</S> which<S>3588</S> is in<S>1722</S> heaven<S>3772</S>: for<S>3754</S> he maketh<S>393</S> his<S>846</S> sun<S>2246</S> to rise<S>393</S> on<S>1909</S> the evil<S>4190</S> and<S>2532</S> on the good<S>18</S>, and<S>2532</S> sendeth rain<S>1026</S> on<S>1909</S> the just<S>1342</S> and<S>2532</S> on the unjust<S>94</S>."
+      }
+    ],
+    "book": "Matthew",
+    "chapter": 5,
+    "verse_start": 44,
+    "verse_end": 45,
+    "translation": "KJV"
+  },
+  "James 1:17|KJV": {
+    "text": "Every good gift and every perfect gift is from above, and cometh down from the Father of lights, with whom is no variableness, neither shadow of turning.",
+    "verse": 17,
+    "book": "James",
+    "chapter": 1,
+    "translation": "KJV"
+  },
+  "Galatians 1:4|KJV": {
+    "text": "Who gave himself for our sins, that he might deliver us from this present evil world, according to the will of God and our Father:",
+    "verse": 4,
+    "book": "Galatians",
+    "chapter": 1,
+    "translation": "KJV"
+  },
+  "2 Peter 3:9|KJV": {
+    "text": "The Lord is not slack concerning his promise, as some men count slackness; but is longsuffering to us-ward, not willing that any should perish, but that all should come to repentance.",
+    "verse": 9,
+    "book": "2 Peter",
+    "chapter": 3,
+    "translation": "KJV"
+  },
+  "2 Peter 3:9|NKJV": {
+    "text": "The Lord is not slack concerning His promise, as some count slackness, but is longsuffering toward us, not willing that any should perish but that all should come to repentance.",
+    "verse": 9,
+    "book": "2 Peter",
+    "chapter": 3,
+    "translation": "NKJV"
+  },
+  "2 Peter 3:9|ESV": {
+    "text": "The Lord is not slow to fulfill his promise as some count slowness, but is patient toward you, not wishing that any should perish, but that all should reach repentance.",
+    "verse": 9,
+    "book": "2 Peter",
+    "chapter": 3,
+    "translation": "ESV"
+  },
+  "2 Peter 3:9|NIV": {
+    "text": "The Lord is not slow in keeping his promise, as some understand slowness. He is patient with you, not wanting anyone to perish, but everyone to come to repentance.",
+    "verse": 9,
+    "book": "2 Peter",
+    "chapter": 3,
+    "translation": "NIV"
+  },
+  "2 Peter 3:9|NASB": {
+    "text": "The Lord is not slow about His promise, as some count slowness, but is patient toward you, not wishing for any to perish but for all to come to repentance.",
+    "verse": 9,
+    "book": "2 Peter",
+    "chapter": 3,
+    "translation": "NASB"
+  },
+  "2 Peter 3:9|NLT": {
+    "text": "The Lord isn’t really being slow about his promise, as some people think. No, he is being patient for your sake. He does not want anyone to be destroyed, but wants everyone to repent.",
+    "verse": 9,
+    "book": "2 Peter",
+    "chapter": 3,
+    "translation": "NLT"
+  },
+  "2 Peter 3:9|RSV": {
+    "text": "The Lord is not slow about his promise as some count slowness, but is forbearing toward you, not wishing that any should perish, but that all should reach repentance.",
+    "verse": 9,
+    "book": "2 Peter",
+    "chapter": 3,
+    "translation": "RSV"
+  },
+  "2 Peter 3:9|ASV": {
+    "text": "The Lord is not slack concerning his promise, as some count slackness; but is longsuffering to you-ward, not wishing that any should perish, but that all should come to repentance.",
+    "verse": 9,
+    "book": "2 Peter",
+    "chapter": 3,
+    "translation": "ASV"
+  },
+  "John 20:31|KJV": {
+    "text": "But these are written, that ye might believe that Jesus is the Christ, the Son of God; and that believing ye might have life through his name.",
+    "verse": 31,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 4:13|KJV": {
+    "text": "Jesus answered and said unto her, Whosoever drinketh of this water shall thirst again:",
+    "verse": 13,
+    "book": "John",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "John 4:13|NKJV": {
+    "text": "Jesus answered and said to her, “Whoever drinks of this water will thirst again,",
+    "verse": 13,
+    "book": "John",
+    "chapter": 4,
+    "translation": "NKJV"
+  },
+  "John 4:13|ESV": {
+    "text": "Jesus said to her, “Everyone who drinks of this water will be thirsty again,",
+    "verse": 13,
+    "book": "John",
+    "chapter": 4,
+    "translation": "ESV"
+  },
+  "John 4:13|NIV": {
+    "text": "Jesus answered, “Everyone who drinks this water will be thirsty again,",
+    "verse": 13,
+    "book": "John",
+    "chapter": 4,
+    "translation": "NIV"
+  },
+  "John 4:13|NASB": {
+    "text": "Jesus answered and said to her, 'Everyone who drinks of this water will thirst again;",
+    "verse": 13,
+    "book": "John",
+    "chapter": 4,
+    "translation": "NASB"
+  },
+  "John 4:13|NLT": {
+    "text": "Jesus replied, “Anyone who drinks this water will soon become thirsty again.",
+    "verse": 13,
+    "book": "John",
+    "chapter": 4,
+    "translation": "NLT"
+  },
+  "John 4:13|RSV": {
+    "text": "Jesus said to her, 'Every one who drinks of this water will thirst again,",
+    "verse": 13,
+    "book": "John",
+    "chapter": 4,
+    "translation": "RSV"
+  },
+  "John 4:13|ASV": {
+    "text": "Jesus answered and said unto her, Every one that drinketh of this water shall thirst again:",
+    "verse": 13,
+    "book": "John",
+    "chapter": 4,
+    "translation": "ASV"
+  },
+  "1 John 4:13|KJV": {
+    "text": "Hereby know we that we dwell in him, and he in us, because he hath given us of his Spirit.",
+    "verse": 13,
+    "book": "1 John",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "2 Peter 1:3|KJV": {
+    "text": "According as his divine power hath given unto us all things that pertain unto life and godliness, through the knowledge of him that hath called us to glory and virtue:",
+    "verse": 3,
+    "book": "2 Peter",
+    "chapter": 1,
+    "translation": "KJV"
+  },
+  "1 Corinthians 8:5|KJV": {
+    "text": "For though there be that are called gods, whether in heaven or in earth, (as there be gods many, and lords many,)",
+    "verse": 5,
+    "book": "1 Corinthians",
+    "chapter": 8,
+    "translation": "KJV"
+  },
+  "1 Corinthians 8:5|NKJV": {
+    "text": "For even if there are so-called gods, whether in heaven or on earth (as there are many gods and many lords),",
+    "verse": 5,
+    "book": "1 Corinthians",
+    "chapter": 8,
+    "translation": "NKJV"
+  },
+  "1 Corinthians 8:5|ESV": {
+    "text": "For although there may be so-called gods in heaven or on earth — as indeed there are many “gods” and many “lords” —",
+    "verse": 5,
+    "book": "1 Corinthians",
+    "chapter": 8,
+    "translation": "ESV"
+  },
+  "1 Corinthians 8:5|NIV": {
+    "text": "For even if there are so-called gods, whether in heaven or on earth (as indeed there are many “gods” and many “lords”),",
+    "verse": 5,
+    "book": "1 Corinthians",
+    "chapter": 8,
+    "translation": "NIV"
+  },
+  "1 Corinthians 8:5|NASB": {
+    "text": "For even if there are so-called gods whether in heaven or on earth, as indeed there are many gods and many lords,",
+    "verse": 5,
+    "book": "1 Corinthians",
+    "chapter": 8,
+    "translation": "NASB"
+  },
+  "1 Corinthians 8:5|NLT": {
+    "text": "There may be so-called gods both in heaven and on earth, and some people actually worship many gods and many lords.",
+    "verse": 5,
+    "book": "1 Corinthians",
+    "chapter": 8,
+    "translation": "NLT"
+  },
+  "1 Corinthians 8:5|RSV": {
+    "text": "For although there may be so-called gods in heaven or on earth -- as indeed there are many 'gods' and many 'lords' --",
+    "verse": 5,
+    "book": "1 Corinthians",
+    "chapter": 8,
+    "translation": "RSV"
+  },
+  "1 Corinthians 8:5|ASV": {
+    "text": "For though there be that are called gods, whether in heaven or on earth; as there are gods many, and lords many;",
+    "verse": 5,
+    "book": "1 Corinthians",
+    "chapter": 8,
+    "translation": "ASV"
+  },
+  "1 John 4:19|KJV": {
+    "text": "We love him, because he first loved us.",
+    "verse": 19,
+    "book": "1 John",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Joshua 24:15|KJV": {
+    "text": "And if it seem evil unto you to serve the LORD, choose you this day whom ye will serve; whether the gods which your fathers served that were on the other side of the flood, or the gods of the Amorites, in whose land ye dwell: but as for me and my house, we will serve the LORD.",
+    "verse": 15,
+    "book": "Joshua",
+    "chapter": 24,
+    "translation": "KJV"
+  },
+  "Matthew 16:24|KJV": {
+    "text": "Then said Jesus unto his disciples, If any man will come after me, let him deny himself, and take up his cross, and follow me.",
+    "verse": 24,
+    "book": "Matthew",
+    "chapter": 16,
+    "translation": "KJV"
+  },
+  "Matthew 16:24|NKJV": {
+    "text": "Then Jesus said to His disciples, “If anyone desires to come after Me, let him deny himself, and take up his cross, and follow Me.",
+    "verse": 24,
+    "book": "Matthew",
+    "chapter": 16,
+    "translation": "NKJV"
+  },
+  "Matthew 16:24|ESV": {
+    "text": "Then Jesus told his disciples, “If anyone would come after me, let him deny himself and take up his cross and follow me.",
+    "verse": 24,
+    "book": "Matthew",
+    "chapter": 16,
+    "translation": "ESV"
+  },
+  "Matthew 16:24|NIV": {
+    "text": "Then Jesus said to his disciples, “If anyone would come after me, he must deny himself and take up his cross and follow me.",
+    "verse": 24,
+    "book": "Matthew",
+    "chapter": 16,
+    "translation": "NIV"
+  },
+  "Matthew 16:24|NASB": {
+    "text": "Then Jesus said to His disciples, 'If anyone wishes to come after Me, he must deny himself, and take up his cross and follow Me.",
+    "verse": 24,
+    "book": "Matthew",
+    "chapter": 16,
+    "translation": "NASB"
+  },
+  "Matthew 16:24|NLT": {
+    "text": "Then Jesus said to his disciples, “If any of you wants to be my follower, you must give up your own way, take up your cross, and follow me.",
+    "verse": 24,
+    "book": "Matthew",
+    "chapter": 16,
+    "translation": "NLT"
+  },
+  "Matthew 16:24|RSV": {
+    "text": "Then Jesus told his disciples, 'If any man would come after me, let him deny himself and take up his cross and follow me.",
+    "verse": 24,
+    "book": "Matthew",
+    "chapter": 16,
+    "translation": "RSV"
+  },
+  "Matthew 16:24|ASV": {
+    "text": "Then said Jesus unto his disciples, If any man would come after me, let him deny himself, and take up his cross, and follow me.",
+    "verse": 24,
+    "book": "Matthew",
+    "chapter": 16,
+    "translation": "ASV"
+  },
+  "Romans 12:1-2|KJV": {
+    "text": "I beseech you therefore, brethren, by the mercies of God, that ye present your bodies a living sacrifice, holy, acceptable unto God, which is your reasonable service. And be not conformed to this world: but be ye transformed by the renewing of your mind, that ye may prove what is that good, and acceptable, and perfect, will of God.",
+    "verses": [
+      {
+        "pk": 2628421,
+        "translation": "KJV",
+        "book": 45,
+        "chapter": 12,
+        "verse": 1,
+        "text": "I beseech<S>3870</S> you<S>5209</S> therefore<S>3767</S>, brethren<S>80</S>, by<S>1223</S> the mercies<S>3628</S> of God<S>2316</S>, that ye present<S>3936</S> your<S>5216</S> bodies<S>4983</S> a living<S>2198</S> sacrifice<S>2378</S>, holy<S>40</S>, acceptable<S>2101</S> unto God<S>2316</S>, which is your<S>5216</S> reasonable<S>3050</S> service<S>2999</S>."
+      },
+      {
+        "pk": 2628422,
+        "translation": "KJV",
+        "book": 45,
+        "chapter": 12,
+        "verse": 2,
+        "text": "And<S>2532</S> be<S>4964</S> not<S>3361</S> conformed<S>4964</S> to this<S>5129</S> world<S>165</S>: but<S>235</S> be ye transformed<S>3339</S> by the renewing<S>342</S> of your<S>5216</S> mind<S>3563</S>, that<S>1519</S> ye<S>5209</S> may prove<S>1381</S> what<S>5101</S> is that good<S>18</S>, and<S>2532</S> acceptable<S>2101</S>, and<S>2532</S> perfect<S>5046</S>, will<S>2307</S> of God<S>2316</S>."
+      }
+    ],
+    "book": "Romans",
+    "chapter": 12,
+    "verse_start": 1,
+    "verse_end": 2,
+    "translation": "KJV"
+  },
+  "1 Corinthians 9:27|KJV": {
+    "text": "But I keep under my body, and bring it into subjection: lest that by any means , when I have preached to others, I myself should be a castaway.",
+    "verse": 27,
+    "book": "1 Corinthians",
+    "chapter": 9,
+    "translation": "KJV"
+  },
+  "Ephesians 5:16|KJV": {
+    "text": "Redeeming the time, because the days are evil.",
+    "verse": 16,
+    "book": "Ephesians",
+    "chapter": 5,
+    "translation": "KJV"
+  },
+  "Galatians 4:1|KJV": {
+    "text": "Now I say, That the heir, as long as he is a child, differeth nothing from a servant, though he be lord of all;",
+    "verse": 1,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:2|KJV": {
+    "text": "But is under tutors and governors until the time appointed of the father.",
+    "verse": 2,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:3|KJV": {
+    "text": "Even so we, when we were children, were in bondage under the elements of the world:",
+    "verse": 3,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:4|KJV": {
+    "text": "But when the fulness of the time was come, God sent forth his Son, made of a woman, made under the law,",
+    "verse": 4,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:5|KJV": {
+    "text": "To redeem them that were under the law, that we might receive the adoption of sons.",
+    "verse": 5,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:6|KJV": {
+    "text": "And because ye are sons, God hath sent forth the Spirit of his Son into your hearts, crying, Abba, Father.",
+    "verse": 6,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:7|KJV": {
+    "text": "Wherefore thou art no more a servant, but a son; and if a son, then an heir of God through Christ.",
+    "verse": 7,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:8|KJV": {
+    "text": "Howbeit then , when ye knew not God, ye did service unto them which by nature are no gods.",
+    "verse": 8,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:9|KJV": {
+    "text": "But now, after that ye have known God, or rather are known of God, how turn ye again to the weak and beggarly elements, whereunto ye desire again to be in bondage?",
+    "verse": 9,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:10|KJV": {
+    "text": "Ye observe days, and months, and times, and years.",
+    "verse": 10,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:11|KJV": {
+    "text": "I am afraid of you, lest I have bestowed upon you labour in vain.",
+    "verse": 11,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:12|KJV": {
+    "text": "Brethren, I beseech you, be as I am; for I am as ye are: ye have not injured me at all.",
+    "verse": 12,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:13|KJV": {
+    "text": "Ye know how through infirmity of the flesh I preached the gospel unto you at the first.",
+    "verse": 13,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:14|KJV": {
+    "text": "And my temptation which was in my flesh ye despised not, nor rejected; but received me as an angel of God, even as Christ Jesus.",
+    "verse": 14,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:15|KJV": {
+    "text": "Where is then the blessedness ye spake of? for I bear you record, that, if it had been possible, ye would have plucked out your own eyes, and have given them to me.",
+    "verse": 15,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:16|KJV": {
+    "text": "Am I therefore become your enemy, because I tell you the truth?",
+    "verse": 16,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:17|KJV": {
+    "text": "They zealously affect you, but not well; yea, they would exclude you, that ye might affect them.",
+    "verse": 17,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:18|KJV": {
+    "text": "But it is good to be zealously affected always in a good thing, and not only when I am present with you.",
+    "verse": 18,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:19|KJV": {
+    "text": "My little children, of whom I travail in birth again until Christ be formed in you,",
+    "verse": 19,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "Galatians 4:20|KJV": {
+    "text": "I desire to be present with you now, and to change my voice; for I stand in doubt of you.",
+    "verse": 20,
+    "book": "Galatians",
+    "chapter": 4,
+    "translation": "KJV"
+  },
+  "John 20:1|KJV": {
+    "text": "The first day of the week cometh Mary Magdalene early, when it was yet dark, unto the sepulchre, and seeth the stone taken away from the sepulchre.",
+    "verse": 1,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:2|KJV": {
+    "text": "Then she runneth, and cometh to Simon Peter, and to the other disciple, whom Jesus loved, and saith unto them, They have taken away the Lord out of the sepulchre, and we know not where they have laid him.",
+    "verse": 2,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:3|KJV": {
+    "text": "Peter therefore went forth, and that other disciple, and came to the sepulchre.",
+    "verse": 3,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:4|KJV": {
+    "text": "So they ran both together: and the other disciple did outrun Peter, and came first to the sepulchre.",
+    "verse": 4,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:5|KJV": {
+    "text": "And he stooping down, and looking in, saw the linen clothes lying; yet went he not in.",
+    "verse": 5,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:6|KJV": {
+    "text": "Then cometh Simon Peter following him, and went into the sepulchre, and seeth the linen clothes lie,",
+    "verse": 6,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:7|KJV": {
+    "text": "And the napkin, that was about his head, not lying with the linen clothes, but wrapped together in a place by itself .",
+    "verse": 7,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:8|KJV": {
+    "text": "Then went in also that other disciple, which came first to the sepulchre, and he saw, and believed.",
+    "verse": 8,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:9|KJV": {
+    "text": "For as yet they knew not the scripture, that he must rise again from the dead.",
+    "verse": 9,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:10|KJV": {
+    "text": "Then the disciples went away again unto their own home.",
+    "verse": 10,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:11|KJV": {
+    "text": "But Mary stood without at the sepulchre weeping: and as she wept, she stooped down, and looked into the sepulchre,",
+    "verse": 11,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:12|KJV": {
+    "text": "And seeth two angels in white sitting, the one at the head, and the other at the feet, where the body of Jesus had lain.",
+    "verse": 12,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:13|KJV": {
+    "text": "And they say unto her, Woman, why weepest thou? She saith unto them, Because they have taken away my Lord, and I know not where they have laid him.",
+    "verse": 13,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:14|KJV": {
+    "text": "And when she had thus said, she turned herself back, and saw Jesus standing, and knew not that it was Jesus.",
+    "verse": 14,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:15|KJV": {
+    "text": "Jesus saith unto her, Woman, why weepest thou? whom seekest thou? She, supposing him to be the gardener, saith unto him, Sir, if thou have borne him hence, tell me where thou hast laid him, and I will take him away.",
+    "verse": 15,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:16|KJV": {
+    "text": "Jesus saith unto her, Mary. She turned herself, and saith unto him, Rabboni; which is to say, Master.",
+    "verse": 16,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:17|KJV": {
+    "text": "Jesus saith unto her, Touch me not; for I am not yet ascended to my Father: but go to my brethren, and say unto them, I ascend unto my Father, and your Father; and to my God, and your God.",
+    "verse": 17,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:18|KJV": {
+    "text": "Mary Magdalene came and told the disciples that she had seen the Lord, and that he had spoken these things unto her.",
+    "verse": 18,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:19|KJV": {
+    "text": "Then the same day at evening, being the first day of the week, when the doors were shut where the disciples were assembled for fear of the Jews, came Jesus and stood in the midst, and saith unto them, Peace be unto you.",
+    "verse": 19,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "John 20:20|KJV": {
+    "text": "And when he had so said, he shewed unto them his hands and his side. Then were the disciples glad, when they saw the Lord.",
+    "verse": 20,
+    "book": "John",
+    "chapter": 20,
+    "translation": "KJV"
+  },
+  "Matthew 22:1|KJV": {
+    "text": "And Jesus answered and spake unto them again by parables, and said,",
+    "verse": 1,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:2|KJV": {
+    "text": "The kingdom of heaven is like unto a certain king, which made a marriage for his son,",
+    "verse": 2,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:3|KJV": {
+    "text": "And sent forth his servants to call them that were bidden to the wedding: and they would not come.",
+    "verse": 3,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:4|KJV": {
+    "text": "Again, he sent forth other servants, saying, Tell them which are bidden, Behold, I have prepared my dinner: my oxen and my fatlings are killed, and all things are ready: come unto the marriage.",
+    "verse": 4,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:5|KJV": {
+    "text": "But they made light of it, and went their ways, one to his farm, another to his merchandise:",
+    "verse": 5,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:6|KJV": {
+    "text": "And the remnant took his servants, and entreated them spitefully, and slew them.",
+    "verse": 6,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:7|KJV": {
+    "text": "But when the king heard thereof, he was wroth: and he sent forth his armies, and destroyed those murderers, and burned up their city.",
+    "verse": 7,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:8|KJV": {
+    "text": "Then saith he to his servants, The wedding is ready, but they which were bidden were not worthy.",
+    "verse": 8,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:9|KJV": {
+    "text": "Go ye therefore into the highways , and as many as ye shall find, bid to the marriage.",
+    "verse": 9,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:10|KJV": {
+    "text": "So those servants went out into the highways, and gathered together all as many as they found, both bad and good: and the wedding was furnished with guests.",
+    "verse": 10,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:11|KJV": {
+    "text": "And when the king came in to see the guests, he saw there a man which had not on a wedding garment:",
+    "verse": 11,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:12|KJV": {
+    "text": "And he saith unto him, Friend, how camest thou in hither not having a wedding garment? And he was speechless.",
+    "verse": 12,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:13|KJV": {
+    "text": "Then said the king to the servants, Bind him hand and foot, and take him away, and cast him into outer darkness; there shall be weeping and gnashing of teeth.",
+    "verse": 13,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:14|KJV": {
+    "text": "For many are called, but few are chosen.",
+    "verse": 14,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:15|KJV": {
+    "text": "Then went the Pharisees, and took counsel how they might entangle him in his talk.",
+    "verse": 15,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:16|KJV": {
+    "text": "And they sent out unto him their disciples with the Herodians, saying, Master, we know that thou art true, and teachest the way of God in truth, neither carest thou for any man: for thou regardest not the person of men.",
+    "verse": 16,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:17|KJV": {
+    "text": "Tell us therefore, What thinkest thou? Is it lawful to give tribute unto Caesar, or not?",
+    "verse": 17,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:18|KJV": {
+    "text": "But Jesus perceived their wickedness, and said, Why tempt ye me, ye hypocrites?",
+    "verse": 18,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:19|KJV": {
+    "text": "Shew me the tribute money. And they brought unto him a penny.",
+    "verse": 19,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
+  },
+  "Matthew 22:20|KJV": {
+    "text": "And he saith unto them, Whose is this image and superscription?",
+    "verse": 20,
+    "book": "Matthew",
+    "chapter": 22,
+    "translation": "KJV"
   }
 }
