@@ -13,3 +13,6 @@ transformers
 
 # HTTP requests for Bible API
 requests
+
+# Keyword extraction for tags
+keybert

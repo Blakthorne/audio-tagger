@@ -16,7 +16,15 @@ import whisper
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import re
-from typing import List
+from typing import List, Optional
+
+# Import KeyBERT for keyword extraction (tags)
+try:
+    from keybert import KeyBERT
+    KEYBERT_AVAILABLE = True
+except ImportError:
+    KEYBERT_AVAILABLE = False
+    print("⚠️  KeyBERT not installed. Install with: pip install keybert")
 
 # Import Bible quote processor
 from bible_quote_processor import process_text, QuoteBoundary
@@ -27,6 +35,10 @@ semantic_model = SentenceTransformer('all-MiniLM-L6-v2')
 if device == "mps":
     semantic_model = semantic_model.to(device)
     print("✓ Semantic model loaded on GPU")
+
+# High-quality model for tag extraction (loaded lazily when needed)
+TAG_MODEL_NAME = "all-mpnet-base-v2"  # Highest quality sentence-transformers model
+tag_model = None  # Loaded on first use
 
 def transcribe_audio(file_path: str) -> str:
     print("Transcribing audio...")
@@ -69,8 +81,9 @@ PRAYER_START_PATTERNS = [
     # NOTE: "Amen" is NOT a prayer start - it ENDS prayers. Handled separately below.
 ]
 
-# Pattern to detect standalone "Amen" sentences that should be attached to previous paragraph
-AMEN_END_PATTERN = r"^amen\s*[.!]?$"
+# Pattern to detect sentences that END with "Amen" (prayer endings)
+# This matches "Amen.", "In Jesus' name we pray, Amen.", etc.
+AMEN_END_PATTERN = r"\bamen\s*[.!]?\s*$"
 
 
 def segment_into_paragraphs(text: str, quote_boundaries: List[QuoteBoundary] = None, 
@@ -314,34 +327,258 @@ def segment_into_paragraphs(text: str, quote_boundaries: List[QuoteBoundary] = N
     return '\n\n'.join(paragraphs)
 
 
+# Curated vocabulary of valid religious/theological tags for Christian/Baptist/Evangelical sermons
+# These are the ONLY words that can become tags - ensures religious relevance
+RELIGIOUS_TAG_VOCABULARY = {
+    # Core Christian Theology
+    'salvation', 'redemption', 'justification', 'sanctification', 'glorification',
+    'atonement', 'propitiation', 'reconciliation', 'forgiveness', 'mercy', 'grace',
+    'faith', 'belief', 'trust', 'hope', 'love', 'charity', 'righteousness',
+    'holiness', 'purity', 'obedience', 'repentance', 'confession', 'conversion',
+    
+    # God and Trinity
+    'trinity', 'godhead', 'deity', 'divinity', 'sovereignty', 'omnipotence',
+    'omniscience', 'omnipresence', 'immutability', 'eternality', 'creator',
+    
+    # Jesus Christ
+    'messiah', 'christ', 'savior', 'lord', 'redeemer', 'mediator', 'advocate',
+    'lamb', 'shepherd', 'king', 'prophet', 'priest', 'incarnation', 'virgin',
+    'crucifixion', 'resurrection', 'ascension', 'intercession', 'return',
+    
+    # Holy Spirit
+    'spirit', 'comforter', 'counselor', 'advocate', 'indwelling', 'filling',
+    'anointing', 'empowerment', 'conviction', 'illumination',
+    
+    # Scripture and Revelation
+    'inspiration', 'inerrancy', 'infallibility', 'authority', 'revelation',
+    'prophecy', 'fulfillment', 'covenant', 'promise', 'commandment',
+    
+    # Sin and Fall
+    'sin', 'transgression', 'iniquity', 'wickedness', 'depravity', 'corruption',
+    'temptation', 'flesh', 'worldliness', 'idolatry', 'pride', 'rebellion',
+    
+    # Salvation Process
+    'election', 'predestination', 'calling', 'regeneration', 'adoption',
+    'imputation', 'perseverance', 'assurance', 'security', 'eternal',
+    
+    # Church and Community
+    'church', 'congregation', 'fellowship', 'communion', 'baptism', 'ordinance',
+    'sacrament', 'membership', 'discipline', 'unity', 'body', 'bride',
+    
+    # Christian Life
+    'discipleship', 'stewardship', 'service', 'ministry', 'witness', 'testimony',
+    'evangelism', 'missions', 'prayer', 'worship', 'praise', 'thanksgiving',
+    'fasting', 'meditation', 'devotion', 'consecration', 'dedication',
+    
+    # Spiritual Warfare
+    'warfare', 'armor', 'victory', 'deliverance', 'freedom', 'bondage',
+    'stronghold', 'spiritual', 'demonic', 'satan', 'devil', 'angels',
+    
+    # End Times / Eschatology
+    'rapture', 'tribulation', 'millennium', 'judgment', 'heaven', 'hell',
+    'eternity', 'paradise', 'kingdom', 'throne', 'glory', 'reward',
+    
+    # Biblical Characters and Groups
+    'apostle', 'disciple', 'prophet', 'patriarch', 'priest', 'levite',
+    'pharisee', 'gentile', 'jew', 'israelite', 'hebrew', 'christian',
+    
+    # Biblical Events and Themes
+    'creation', 'fall', 'flood', 'exodus', 'passover', 'wilderness',
+    'promised', 'exile', 'restoration', 'birth', 'death', 'burial',
+    'christmas', 'easter', 'pentecost', 'advent',
+    
+    # Virtues and Fruit of Spirit
+    'patience', 'kindness', 'goodness', 'faithfulness', 'gentleness',
+    'self-control', 'humility', 'meekness', 'temperance', 'contentment',
+    
+    # Biblical Locations (significant ones)
+    'jerusalem', 'bethlehem', 'nazareth', 'galilee', 'calvary', 'golgotha',
+    'gethsemane', 'jordan', 'egypt', 'babylon', 'israel', 'zion',
+    
+    # Family and Relationships
+    'marriage', 'family', 'children', 'parenting', 'husband', 'wife',
+    'father', 'mother', 'brother', 'sister', 'widow', 'orphan',
+    
+    # Money and Possessions
+    'tithe', 'offering', 'giving', 'generosity', 'treasure', 'riches',
+    'poverty', 'provision', 'blessing', 'prosperity',
+    
+    # Suffering and Trials
+    'suffering', 'persecution', 'trial', 'tribulation', 'affliction',
+    'comfort', 'healing', 'restoration', 'hope', 'endurance',
+    
+    # Leadership and Authority
+    'pastor', 'elder', 'deacon', 'bishop', 'overseer', 'shepherd',
+    'teacher', 'preacher', 'evangelist', 'missionary', 'servant',
+    
+    # Worship Elements
+    'hymn', 'psalm', 'song', 'altar', 'sacrifice', 'tabernacle', 'temple',
+    'ark', 'incense', 'oil', 'bread', 'wine', 'cup', 'cross', 'blood',
+    
+    # Magi/Christmas specific
+    'magi', 'wisemen', 'star', 'gold', 'frankincense', 'myrrh', 'gifts',
+    'herod', 'angels', 'shepherds', 'manger', 'nativity', 'immanuel',
+}
+
+
+def extract_tags(text: str, quote_boundaries: List[QuoteBoundary] = None,
+                 min_occurrences: int = 3, min_score: float = 0.20,
+                 max_tags: int = 20, verbose: bool = True) -> List[str]:
+    """
+    Extract religious keyword tags from a Christian/Baptist/Evangelical sermon transcript.
+    
+    Uses a curated vocabulary of religious terms and requires significant evidence
+    (multiple occurrences) in the text. Only returns tags with strong textual support.
+    
+    Args:
+        text: The transcript text (with or without paragraphs)
+        quote_boundaries: Quote boundaries to exclude quoted Bible text from analysis
+        min_occurrences: Minimum times a word must appear to be considered (default: 3)
+        min_score: Minimum KeyBERT relevance score to include (default: 0.25)
+        max_tags: Maximum number of tags to return (default: 20)
+        verbose: Whether to print progress messages
+    
+    Returns:
+        List of keyword strings (only those with significant evidence), or empty list
+    """
+    global tag_model
+    
+    if not KEYBERT_AVAILABLE:
+        if verbose:
+            print("   ⚠️  KeyBERT not installed")
+            print("   Install with: pip install keybert")
+        return []
+    
+    # Load the high-quality model on first use
+    if tag_model is None:
+        if verbose:
+            print(f"   Loading high-quality model ({TAG_MODEL_NAME})...")
+        tag_model = SentenceTransformer(TAG_MODEL_NAME)
+        if device == "mps":
+            tag_model = tag_model.to(device)
+            if verbose:
+                print(f"   ✓ Tag model loaded on GPU")
+    
+    if verbose:
+        print("   Analyzing sermon for religious themes...")
+    
+    # Remove Bible quotes from the text to avoid extracting quoted scripture phrases
+    clean_text = text.lower()
+    if quote_boundaries:
+        sorted_boundaries = sorted(quote_boundaries, key=lambda x: x.start_pos, reverse=True)
+        for qb in sorted_boundaries:
+            clean_text = clean_text[:qb.start_pos] + " " + clean_text[qb.end_pos:]
+        if verbose:
+            print(f"   Excluded {len(quote_boundaries)} Bible quotes from analysis")
+    
+    # Count occurrences of each religious term in the text
+    word_counts = {}
+    for term in RELIGIOUS_TAG_VOCABULARY:
+        # Use word boundary matching to avoid partial matches
+        pattern = r'\b' + re.escape(term) + r'\b'
+        count = len(re.findall(pattern, clean_text, re.IGNORECASE))
+        if count >= min_occurrences:
+            word_counts[term] = count
+    
+    if not word_counts:
+        if verbose:
+            print("   No religious terms found with sufficient evidence")
+        return []
+    
+    if verbose:
+        print(f"   Found {len(word_counts)} terms with {min_occurrences}+ occurrences")
+    
+    try:
+        # Use KeyBERT with the high-quality model to rank the candidate terms
+        # by semantic relevance to the overall sermon content
+        kw_model = KeyBERT(model=tag_model)
+        
+        # Get the candidates that passed the occurrence filter
+        candidates = list(word_counts.keys())
+        
+        # Extract keywords using the candidates parameter
+        # This tells KeyBERT to only consider our religious vocabulary
+        keywords = kw_model.extract_keywords(
+            clean_text,
+            candidates=candidates,
+            top_n=len(candidates),  # Get scores for all candidates
+            use_mmr=True,
+            diversity=0.5,  # Moderate diversity
+        )
+        
+        # Filter by score and format results
+        final_tags = []
+        for keyword, score in keywords:
+            if score >= min_score:
+                # Capitalize for display
+                tag = keyword.title()
+                final_tags.append((tag, score, word_counts[keyword.lower()]))
+        
+        # Sort by a combination of score and frequency
+        # Higher score and higher frequency = better tag
+        final_tags.sort(key=lambda x: x[1] * (1 + x[2] / 10), reverse=True)
+        
+        # Take top tags up to max
+        result_tags = [tag for tag, score, count in final_tags[:max_tags]]
+        
+        if verbose:
+            print(f"   ✓ Extracted {len(result_tags)} religious tags")
+            if result_tags and len(final_tags) > 0:
+                # Show evidence for top tags
+                for tag, score, count in final_tags[:min(3, len(final_tags))]:
+                    print(f"      • {tag}: {count} occurrences, relevance {score:.2f}")
+        
+        return result_tags
+        
+    except Exception as e:
+        if verbose:
+            print(f"   ⚠️  Error extracting tags: {str(e)}")
+        return []
+
+
 if __name__ == "__main__":
     import sys
     
-    # Get input file from command line or use default
-    if len(sys.argv) > 1:
-        audio_file = sys.argv[1]
+    # Check for test mode flag
+    test_mode = "test" in sys.argv
+    
+    # Get input file from command line or use default (skip "test" argument)
+    args = [arg for arg in sys.argv[1:] if arg != "test"]
+    if args:
+        audio_file = args[0]
     else:
         audio_file = "20251214-SunAM-Polar.mp3"
     
     # PIPELINE ORDER (optimized):
-    # 1. Transcribe audio to raw text
+    # 1. Transcribe audio to raw text (or load from test file)
     # 2. Process Bible quotes (auto-detect translation + normalize references + add quotation marks)
     # 3. Segment into paragraphs (respecting quote boundaries)
+    # 4. Extract scripture references
+    # 5. Extract keyword tags for categorization
     
     print("\n" + "=" * 70)
     print("SERMON TRANSCRIPTION PIPELINE")
-    print(f"Input: {audio_file}")
+    if test_mode:
+        print("Mode: TEST (using whisper_test.txt)")
+    else:
+        print(f"Input: {audio_file}")
     print("Bible Translation: AUTO-DETECT (per-quote)")
     print("=" * 70)
     
-    # Step 1: Transcribe audio
-    print("\n📝 STEP 1: Transcribing audio...")
-    raw = transcribe_audio(audio_file)
-    
-    # Save raw transcription for debugging
-    with open("whisper_raw.txt", "w", encoding="utf-8") as f:
-        f.write(raw)
-    print("   Raw transcription saved to: whisper_raw.txt")
+    # Step 1: Transcribe audio OR load test file
+    if test_mode:
+        print("\n📝 STEP 1: Loading test file (whisper_test.txt)...")
+        with open("whisper_test.txt", "r", encoding="utf-8") as f:
+            raw = f.read()
+        print("   ✓ Loaded test transcription from: whisper_test.txt")
+    else:
+        print("\n📝 STEP 1: Transcribing audio...")
+        raw = transcribe_audio(audio_file)
+        
+        # Save raw transcription for debugging
+        with open("whisper_raw.txt", "w", encoding="utf-8") as f:
+            f.write(raw)
+        print("   Raw transcription saved to: whisper_raw.txt")
     
     # Step 2: Process Bible quotes using the bible_quote_processor
     # Translation is auto-detected PER QUOTE from the transcript content
@@ -362,20 +599,66 @@ if __name__ == "__main__":
         window_size=3  # Smooth detection over 3 sentence transitions
     )
     
+    # Step 4: Build scripture references section
+    print("\n📖 STEP 4: Building scripture references...")
+    references_section = ""
+    if quote_boundaries:
+        # Extract unique references, preserving order of first appearance
+        # Use the formatted reference string (e.g., "Matthew 2:1-12")
+        seen_refs = set()
+        unique_refs = []
+        for qb in quote_boundaries:
+            # Get the properly formatted reference string
+            ref_str = qb.reference.to_standard_format()
+            if ref_str not in seen_refs:
+                seen_refs.add(ref_str)
+                unique_refs.append(ref_str)
+        
+        if unique_refs:
+            references_section = "\n\n---\n\n## Scripture References\n\n"
+            references_section += "\n".join(f"- {ref}" for ref in unique_refs)
+            print(f"   ✓ Found {len(unique_refs)} unique scripture references")
+    else:
+        print("   No scripture references found")
+    
+    # Step 5: Extract keyword tags for categorization
+    print("\n🏷️  STEP 5: Extracting keyword tags...")
+    tags = extract_tags(paragraphed, quote_boundaries=quote_boundaries, verbose=True)
+    tags_section = ""
+    if tags:
+        tags_section = "\n\n---\n\n## Tags\n\n"
+        tags_section += ", ".join(tags)
+    
+    # Append references and tags to the final output
+    final_output = paragraphed
+    if references_section:
+        final_output += references_section
+    if tags_section:
+        final_output += tags_section
+    
     # Save final output
     with open("whisper_cleaned.txt", "w", encoding="utf-8") as f:
-        f.write(paragraphed)
+        f.write(final_output)
     
     print("\n" + "=" * 70)
     print("✅ TRANSCRIPTION COMPLETE!")
     print("=" * 70)
     print("\nOutput files:")
-    print("  • whisper_raw.txt      - Raw transcription (no processing)")
+    if not test_mode:
+        print("  • whisper_raw.txt      - Raw transcription (no processing)")
     print("  • whisper_quotes.txt   - With Bible quotes marked")
     print("  • whisper_cleaned.txt  - Final output with paragraphs")
     print(f"\nPipeline:")
-    print("  1. ✓ Audio transcription (Whisper medium model)")
+    if test_mode:
+        print("  1. ✓ Test file loaded (whisper_test.txt)")
+    else:
+        print("  1. ✓ Audio transcription (Whisper medium model)")
     print("  2. ✓ Bible translation auto-detection (per-quote)")
     print("  3. ✓ Bible quote detection and normalization")
     print("  4. ✓ Paragraph segmentation (quote-aware)")
+    print("  5. ✓ Scripture references extracted")
+    if tags:
+        print(f"  6. ✓ Keyword tags extracted ({len(tags)} tags)")
+    else:
+        print("  6. ⚠️  Tag extraction skipped (KeyBERT not available)")
     print("=" * 70)
