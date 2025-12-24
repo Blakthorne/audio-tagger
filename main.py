@@ -86,6 +86,145 @@ PRAYER_START_PATTERNS = [
 AMEN_END_PATTERN = r"\bamen\s*[.!]?\s*$"
 
 
+def convert_to_markdown(transcript: str, quote_boundaries: List[QuoteBoundary] = None,
+                        tags: List[str] = None, scripture_refs: List[str] = None) -> str:
+    """
+    Convert the final transcript to a formatted markdown file.
+    
+    Output structure:
+    1. Tags section (first)
+    2. Scripture References section (second)
+    3. Transcript with formatting:
+       - Bible quotes (text in "...") are italicized
+       - Bible verse references (e.g., "Matthew 2:1-12") are bolded
+    
+    Args:
+        transcript: The paragraphed transcript text
+        quote_boundaries: List of QuoteBoundary objects for quotes
+        tags: List of keyword tag strings
+        scripture_refs: List of scripture reference strings
+    
+    Returns:
+        Formatted markdown string
+    """
+    print("Converting to markdown format...")
+    
+    markdown_parts = []
+    
+    # Section 1: Tags (if available)
+    if tags:
+        markdown_parts.append("## Tags\n")
+        markdown_parts.append(", ".join(tags))
+        markdown_parts.append("\n")
+    
+    # Section 2: Scripture References (if available)
+    if scripture_refs:
+        markdown_parts.append("\n---\n")
+        markdown_parts.append("\n## Scripture References\n")
+        markdown_parts.append("\n".join(f"- {ref}" for ref in scripture_refs))
+        markdown_parts.append("\n")
+    
+    # Section 3: Transcript with formatting
+    if tags or scripture_refs:
+        markdown_parts.append("\n---\n")
+    markdown_parts.append("\n## Transcript\n\n")
+    
+    # Process the transcript to add formatting
+    formatted_transcript = transcript
+    
+    # Remove any existing metadata sections from the transcript (they'll be at the start now)
+    # These are added at the end in the current pipeline, so strip them
+    if "---\n\n## Scripture References" in formatted_transcript:
+        formatted_transcript = formatted_transcript.split("---\n\n## Scripture References")[0].strip()
+    if "---\n\n## Tags" in formatted_transcript:
+        formatted_transcript = formatted_transcript.split("---\n\n## Tags")[0].strip()
+    
+    # Step A: Italicize Bible quotes (text within quotation marks that are actual Bible quotes)
+    # We need to find quoted text that matches quote boundaries
+    if quote_boundaries:
+        # Build a set of quote texts for quick lookup
+        quote_texts = set()
+        for qb in quote_boundaries:
+            quote_texts.add(qb.verse_text.strip().lower())
+        
+        # Find all quoted text in the transcript and italicize Bible quotes
+        # Pattern matches text within "..." or "..."
+        def italicize_quote(match):
+            full_match = match.group(0)
+            inner_text = match.group(1)
+            
+            # Check if this is a Bible quote by comparing with known quote texts
+            inner_lower = inner_text.strip().lower()
+            
+            # Check for partial match (quote might be part of the text)
+            is_bible_quote = False
+            for qt in quote_texts:
+                # Check if there's significant overlap
+                if qt in inner_lower or inner_lower in qt:
+                    is_bible_quote = True
+                    break
+                # Check for substantial word overlap (for quotes with slight variations)
+                qt_words = set(qt.split())
+                inner_words = set(inner_lower.split())
+                if len(qt_words & inner_words) >= min(3, len(qt_words)):
+                    is_bible_quote = True
+                    break
+            
+            if is_bible_quote:
+                # Return italicized version (keep the quotes, add asterisks)
+                return f'*"{inner_text}"*'
+            return full_match
+        
+        # Match both regular quotes and smart quotes
+        quote_pattern = r'"([^"]+)"'
+        formatted_transcript = re.sub(quote_pattern, italicize_quote, formatted_transcript)
+    
+    # Step B: Bold Bible verse references in the text
+    # Create a pattern that matches Bible references like "Matthew 2:1-12", "John 3:16", etc.
+    # This should match the book names followed by chapter:verse patterns
+    bible_books_pattern = r'\b(' + '|'.join([
+        # Old Testament
+        'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy',
+        'Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel', '1 Kings', '2 Kings',
+        '1 Chronicles', '2 Chronicles', 'Ezra', 'Nehemiah', 'Esther',
+        'Job', 'Psalms?', 'Proverbs', 'Ecclesiastes', 'Song of Solomon',
+        'Isaiah', 'Jeremiah', 'Lamentations', 'Ezekiel', 'Daniel',
+        'Hosea', 'Joel', 'Amos', 'Obadiah', 'Jonah', 'Micah',
+        'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi',
+        # New Testament
+        'Matthew', 'Mark', 'Luke', 'John', 'Acts', 'Romans',
+        '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians',
+        'Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians',
+        '1 Timothy', '2 Timothy', 'Titus', 'Philemon', 'Hebrews',
+        'James', '1 Peter', '2 Peter', '1 John', '2 John', '3 John',
+        'Jude', 'Revelation'
+    ]) + r')\s+(\d+)(?::(\d+)(?:-(\d+))?)?'
+    
+    def bold_reference(match):
+        full_match = match.group(0)
+        # Only bold if it looks like a proper reference (has chapter at minimum)
+        return f'**{full_match}**'
+    
+    formatted_transcript = re.sub(bible_books_pattern, bold_reference, formatted_transcript, flags=re.IGNORECASE)
+    
+    # Clean up any double-bolding that might occur
+    formatted_transcript = re.sub(r'\*\*\*\*', '**', formatted_transcript)
+    
+    markdown_parts.append(formatted_transcript)
+    
+    result = "".join(markdown_parts)
+    
+    print(f"   ✓ Markdown conversion complete")
+    if quote_boundaries:
+        print(f"      • {len(quote_boundaries)} quotes italicized")
+    if scripture_refs:
+        print(f"      • {len(scripture_refs)} references section")
+    if tags:
+        print(f"      • {len(tags)} tags in header")
+    
+    return result
+
+
 def segment_into_paragraphs(text: str, quote_boundaries: List[QuoteBoundary] = None, 
                             min_sentences_per_paragraph: int = 8, 
                             similarity_threshold: float = 0.65, 
@@ -555,6 +694,7 @@ if __name__ == "__main__":
     # 3. Segment into paragraphs (respecting quote boundaries)
     # 4. Extract scripture references
     # 5. Extract keyword tags for categorization
+    # 6. Convert to final markdown file (final.md)
     
     print("\n" + "=" * 70)
     print("SERMON TRANSCRIPTION PIPELINE")
@@ -636,9 +776,23 @@ if __name__ == "__main__":
     if tags_section:
         final_output += tags_section
     
-    # Save final output
+    # Save final output (plain text version)
     with open("whisper_cleaned.txt", "w", encoding="utf-8") as f:
         f.write(final_output)
+    
+    # Step 6: Convert to formatted markdown file
+    print("\n📝 STEP 6: Converting to markdown (final.md)...")
+    markdown_output = convert_to_markdown(
+        transcript=paragraphed,
+        quote_boundaries=quote_boundaries,
+        tags=tags,
+        scripture_refs=unique_refs if quote_boundaries else None
+    )
+    
+    # Save markdown output
+    with open("final.md", "w", encoding="utf-8") as f:
+        f.write(markdown_output)
+    print("   ✓ Markdown file saved to: final.md")
     
     print("\n" + "=" * 70)
     print("✅ TRANSCRIPTION COMPLETE!")
@@ -648,6 +802,7 @@ if __name__ == "__main__":
         print("  • whisper_raw.txt      - Raw transcription (no processing)")
     print("  • whisper_quotes.txt   - With Bible quotes marked")
     print("  • whisper_cleaned.txt  - Final output with paragraphs")
+    print("  • final.md             - Formatted markdown (tags, refs, italics, bold)")
     print(f"\nPipeline:")
     if test_mode:
         print("  1. ✓ Test file loaded (whisper_test.txt)")
@@ -661,4 +816,5 @@ if __name__ == "__main__":
         print(f"  6. ✓ Keyword tags extracted ({len(tags)} tags)")
     else:
         print("  6. ⚠️  Tag extraction skipped (KeyBERT not available)")
+    print("  7. ✓ Markdown conversion (final.md)")
     print("=" * 70)
